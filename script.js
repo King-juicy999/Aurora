@@ -144,7 +144,10 @@ function saveSync(){
     ctx.moveTo(a[0]-nx*w1*4,a[1]-ny*w1*4); ctx.lineTo(b[0]-nx*w2*4,b[1]-ny*w2*4);
     ctx.lineTo(b[0]+nx*w2*4,b[1]+ny*w2*4); ctx.lineTo(a[0]+nx*w1*4,a[1]+ny*w1*4);
     ctx.closePath(); ctx.fill();
-    // body (tapered)
+
+    // body (tapered) — must be normal alpha blend, not additive, so it reads as a
+    // solid silhouette against any background instead of washing out
+    ctx.globalCompositeOperation='source-over';
     ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
     ctx.globalAlpha=alpha*.92;
     ctx.beginPath();
