@@ -68,18 +68,40 @@ function saveSync(){
 }
 
 /* ============================================================
-   AURORA — 3-scene narrative background (Heaven → Shatter → Hell)
-   ------------------------------------------------------------
-   Reads the real playback time from a shared clock that ENGINE's
-   tick() writes to window.__playback — no CSS parsing, so scenes
-   track the audio exactly regardless of the mp3's true length.
-   Scenes follow the user's Animation Script:
-   1 HEAVEN  sunlit meadow, two lovers under a tree, hands held,
-             glowing heart between them; slow zoom toward the hands.
-   2 SHATTER crack of light, colors drain, hands slip, the heart
-             shatters into glass, ash + smoke rise.
-   3 HELL    fiery wasteland, red fissures, smoke, the protagonist
-             alone with head bowed; camera slowly orbits + pulls back.
+   ANIMATION SCRIPT — Opening Scene ("Heaven to Hell")
+   Song Segment: "Here we go / It was all heaven just a week ago /
+                  Now I'm up in Hell with my eyes closed"
+   Visual Style: Dark anime / cyberpunk, high color contrast,
+                 warm-to-cold palette shift.
+
+   SCENE 1 — Heaven (Past)
+     Lyric window: "Here we go" / "It was all heaven just a week ago"
+     Visual: sunlit meadow, tall gold grass, warm amber/cream sky,
+             pollen drifting slowly.
+     Action: two lovers under a tree, hands clasped, soft glowing
+             heart between them. Stillness and warmth — nothing
+             dramatic happens here.
+     Camera: slow, patient zoom toward the joined hands/heart.
+
+   SCENE 2 — The Shatter (Transition)
+     Lyric window: end of "a week ago" through "Now I'm up in Hell"
+     Visual: one hard crack of white light rips down the frame;
+             warm tones drain instantly to cold ash/grey/black.
+     Action: hands torn apart (not slipping — pulled), the heart
+             fractures into glass shards mid-air, the meadow burns
+             and dissolves into wasteland along with the tree.
+     Effect: screen shake on the crack; ash/embers already rising
+             before the scene ends, so Hell feels like it's arriving.
+
+   SCENE 3 — Hell (Present)
+     Lyric window: "Now I'm up in Hell with my eyes closed" onward
+     Visual: fissured wasteland, glowing red cracks, low smoke,
+             quiet background flame.
+     Action: protagonist alone, head bowed, eyes closed. The heart
+             is already broken — this is the moment AFTER loss,
+             not the moment of it. Embers drift past him, indifferent.
+     Camera: slow orbit + gradual pull-back, until he's a small,
+             still point in a vast fiery dark.
    ============================================================ */
 (function(){
   const cv  = document.getElementById('aurora');
@@ -198,7 +220,7 @@ function saveSync(){
     const torso=FH*.24, neck=FH*.05, headR=FH*.072;
     const up=FH*.185, lo=FH*.165, thigh=FH*.25, shin=FH*.22;
     const sw = o.sway || 0;
-    const bob = Math.abs(Math.sin(sw*.5))*FH*.02;
+    const bob = Math.abs(Math.sin(sw*.5))*FH*.012;
     ctx.save();
     ctx.translate(o.x, o.y);
     ctx.scale(o.s || 1, o.s || 1);
@@ -311,11 +333,13 @@ function saveSync(){
         camY += (Math.random() - .5) * 10 * crack * dpr;
       }
     } else {                                   // hell: orbit + pull back for the whole verse
-      fx = W / 2; fy = H * .60;                // held on the bowed protagonist
+      const settleIn = clamp((t - s3At()) / 2.0, 0, 1);      // eases focal point in, no snap
+      fx = W / 2;
+      fy = mix(hy, H * .60, settleIn);                        // was a hard jump to H*.60
       s = 1 - .10 * clamp((t - s3At()) / 14, 0, 1);
-      camX = Math.sin(t * .22) * SNow * .05;
-      camY = Math.cos(t * .16) * SNow * .03;
-      rot  = Math.sin(t * .11) * .015;
+      camX = Math.sin(t * .22) * SNow * .05 * settleIn;       // orbit fades in too, not instant
+      camY = Math.cos(t * .16) * SNow * .03 * settleIn;
+      rot  = Math.sin(t * .11) * .015 * settleIn;
     }
 
     ctx.clearRect(0, 0, W, H);
@@ -387,11 +411,12 @@ function saveSync(){
       ctx.beginPath(); ctx.arc(p.x * W, p.y * H, r, 0, 6.28); ctx.fill();
     }
 
-    // the tree — full opacity for the whole heaven scene
-    if(scene === 1){
+    // the tree — full opacity in heaven, dissolves with the pasture during the shatter
+    if(scene === 1 || (scene === 2 && local < .5)){
       const tc = pal(mp, 'tree');
       const tx = W * .46, ty = horizon;
-      ctx.globalAlpha = 1;
+      const treeAlpha = scene === 1 ? 1 : clamp(1 - local / .5, 0, 1);
+      ctx.globalAlpha = treeAlpha;
       ctx.fillStyle = rgba(tc, 1);
       ctx.beginPath();
       ctx.moveTo(tx - 8 * dpr, ty);
@@ -423,13 +448,13 @@ function saveSync(){
       const figAlpha = .95 * (scene === 1 ? 1 : clamp(1 - clamp((local - .5) / .5, 0, 1), 0, 1));
       drawFigure({
         x: W / 2 - side, y: heartY + fh * .45, s: 1, f: 1, c: pal(mp, 'figA'),
-        alpha: figAlpha, sway: t * .9, headDrop: .04,
+        alpha: figAlpha, sway: t * .35, headDrop: .04,
         leftTarget:  [ -fh * .32, fh * .42 ],
         rightTarget: [ side * reach, -fh * .45 * (1 - sep) + fh * .35 * sep ]
       });
       drawFigure({
         x: W / 2 + side, y: heartY + fh * .45, s: 1, f: -1, c: pal(mp, 'figB'),
-        alpha: figAlpha, sway: -t * .9, headDrop: .04,
+        alpha: figAlpha, sway: -t * .35, headDrop: .04,
         leftTarget:  [ -side * reach, -fh * .45 * (1 - sep) + fh * .35 * sep ],
         rightTarget: [ fh * .32, fh * .42 ]
       });
@@ -443,7 +468,7 @@ function saveSync(){
           const ag = Math.random() * 6.283, sp = (Math.random() * 3.2 + 1.2) * fh * .02;
           shards.push({ x: heartX, y: heartY,
             vx: Math.cos(ag) * sp, vy: Math.sin(ag) * sp - fh * .03,
-            life: 1.4, r: (Math.random() * .008 + .005) * SNow });
+            life: 2.2, r: (Math.random() * .008 + .005) * SNow });
         }
       }
     }
@@ -451,7 +476,7 @@ function saveSync(){
     if(scene === 3){
       const pa = clamp((t - s3At()) * 2, 0, 1);
       drawFigure({ x: W / 2, y: H * .60, s: .9, f: 1, c: pal(1, 'figA'),
-        alpha: .95 * pa, sway: t * .7, headDrop: .9, lean: .05 });
+        alpha: .95 * pa, sway: t * .22, headDrop: .9, lean: .05 });
     }
 
     // glass shards update + draw
