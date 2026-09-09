@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Underworld · Verse 2 · Aurora Lyrics</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Manrope:wght@400;600&display=swap">
+</head>
+<body>
+
+  <canvas id="aurora"></canvas>
+  <div id="prog"><div id="progFill"></div></div>
+
+  <main id="stage">
+    <h1 id="lyric" aria-live="polite"></h1>
+  </main>
+
+  <div id="caption"></div>
+
+  <div id="cover">
+    <h1>Underworld</h1>
+    <p>Verse two, animated over an aurora.</p>
+    <button id="startBtn">Play</button>
+    <button id="syncBtn" type="button">🎯 Sync lyrics to audio</button>
+    <div class="meta" id="coverMeta"></div>
+    <div class="meta hint" id="coverHint"></div>
+  </div>
+
+  <!-- built-in calibration overlay (no separate page needed) -->
+  <div id="calib" hidden>
+    <div class="calib-inner">
+      <div class="calib-top">Tap-sync · Verse 2</div>
+      <div class="calib-num" id="calibNum">0 / 14</div>
+      <div class="calib-line" id="calibLine"></div>
+      <div class="calib-dots" id="calibDots"></div>
+      <div class="calib-hint">press <b>Space</b> at each line start · <b>0</b> undo · <b>Esc</b> cancel</div>
+      <div class="calib-sub" id="calibSub">~0.12s reaction delay subtracted automatically · snapped to the 160 bpm grid</div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
