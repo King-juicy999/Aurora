@@ -171,6 +171,14 @@ function saveSync(){
     ctx.globalCompositeOperation='source-over';
   }
 
+  // Opaque solid circle — for the head and joint caps, so the figure reads as a
+  // real filled body, not a bone rig. Normal alpha blend (not additive).
+  function solidDot(x, y, r, c, alpha){
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${alpha})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  }
+
   /* ---- two-bone IK arm reaching a target; returns [elbow, wrist] ---- */
   function ikArm(shoulder, target, up, lo, side){
     let dx=target[0]-shoulder[0], dy=target[1]-shoulder[1];
@@ -187,7 +195,7 @@ function saveSync(){
   function drawFigure(o){
     const SNow = Math.min(W,H);
     const FH = SNow*.46;
-    const torso=FH*.24, neck=FH*.05, headR=FH*.058;
+    const torso=FH*.24, neck=FH*.05, headR=FH*.072;
     const up=FH*.185, lo=FH*.165, thigh=FH*.25, shin=FH*.22;
     const sw = o.sway || 0;
     const bob = Math.abs(Math.sin(sw*.5))*FH*.02;
@@ -205,19 +213,24 @@ function saveSync(){
     // legs (rooted at the hip)
     const lx=Math.sin(sw*.7)*FH*.05;
     bone([0,0],[lx,thigh],.042*FH,.024*FH,c,a);
+    solidDot(lx,thigh,.024*FH,c,a);                    // knee cap
     bone([lx,thigh],[lx,thigh+shin],.024*FH,.012*FH,c,a);
     bone([0,0],[-lx*.8,thigh],.042*FH,.024*FH,c,a);
+    solidDot(-lx*.8,thigh,.024*FH,c,a);                // knee cap
     bone([-lx*.8,thigh],[-lx*.8,thigh+shin],.024*FH,.012*FH,c,a);
 
-    // torso + head (head reads as a small glow orb)
+    // torso + head
     bone([0,0],chest,.048*FH,.034*FH,c,a);
-    glowDot(chest[0],headY,headR,c,a*.9);
+    solidDot(0,0,.042*FH,c,a);                          // hip/shoulder joint cap
+    // head: soft ambient glow first (additive, atmosphere only)...
     ctx.globalCompositeOperation='lighter';
     const hg=ctx.createRadialGradient(chest[0],headY,0,chest[0],headY,headR*3);
     hg.addColorStop(0,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a*.28})`);
     hg.addColorStop(1,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},0)`);
     ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(chest[0],headY,headR*3,0,6.28); ctx.fill();
     ctx.globalCompositeOperation='source-over';
+    // ...then a solid, opaque head on top so it reads as a real head, not a smear
+    solidDot(chest[0], headY, headR, c, a);
 
     // arms via IK (default: hanging low at the sides)
     const sh=[chest[0], chest[1]+neck*.3];
@@ -226,11 +239,15 @@ function saveSync(){
     const [eL,wL]=ikArm(sh,tL,up,lo,-o.f);
     const [eR,wR]=ikArm(sh,tR,up,lo, o.f);
     bone(sh,eL,.032*FH,.022*FH,c,a);
+    solidDot(eL[0],eL[1],.022*FH,c,a);                 // elbow cap
     bone(eL,wL,.022*FH,.011*FH,c,a);
     bone(sh,eR,.032*FH,.022*FH,c,a);
+    solidDot(eR[0],eR[1],.022*FH,c,a);                 // elbow cap
     bone(eR,wR,.022*FH,.011*FH,c,a);
     glowDot(wL[0],wL[1],.012*FH,c,a*.8);
+    solidDot(wL[0],wL[1],.012*FH,c,a);                 // wrist cap
     glowDot(wR[0],wR[1],.012*FH,c,a*.8);
+    solidDot(wR[0],wR[1],.012*FH,c,a);                 // wrist cap
     ctx.restore();
   }
 
