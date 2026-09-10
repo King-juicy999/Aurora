@@ -41,7 +41,7 @@ const LYRICS = [
   { t: 16.620,  text: "Fuck her to my favorite heavy metal, ho" },
   { t: 20.000,  text: "We know all the words, so it's special" },
   { t: 21.860,  text: "So, so special" },
-  { t: 23.740,  text: "I loved her and let her go" },
+  { t: 23.740,  text: "I loved her and let her go (go, go, go) fuck that" },
   { t: 26.880,  text: "Maybe I'ma hold her close, get the fuck back" },
   { t: 29.880,  text: "I'm about to overdose, and she love that" },
   { t: 32.860,  text: "Story of a demon seducin'" },
@@ -263,6 +263,14 @@ const LYRICS = [
       headDroop: 0.25,                  // resting against his chest
       shoulderL: -1.3, elbowL: 0.6, shoulderR: -1.4, elbowR: 0.5,  // both arms reach LEFT, around him (was positive = away)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
+    },
+    lyingFlat_male: {                  // Scene 13 — drawn with rotation:-Math.PI/2 to appear horizontal.
+      // All limbs are near-0 (hanging-down) angles; once rotated -90°, +Y maps to
+      // screen right, so this reads as a body stretched out flat, head on the left.
+      // Verified visually, not by auditPoses — "above head" has no meaning post-rotation.
+      headDroop: 0,
+      shoulderL: -0.55, elbowL: 0.15, shoulderR: 0.55, elbowR: -0.15,
+      hipL: 0.1, kneeL: 0.05, hipR: -0.1, kneeR: -0.05
     }
   };
 
@@ -270,7 +278,13 @@ const LYRICS = [
      Runs once at load (console only, NOT part of the render loop). Catches the
      "hand above head" class of bug — a near-pi shoulder angle on a hanging arm.
      Re-run after any pose edit. Raised arms that are INTENTIONAL (reaching,
-     clutching, wrapping) will warn too — check each warning by eye. */
+     clutching, wrapping) will warn too — check each warning by eye.
+
+     After the last hand-above-head incident spanned nearly every pose in the
+     file, EVERY new pose gets run through this before being trusted. Re-run
+     after any edit. (lyingFlat_male is the one exception: it's verified visually
+     instead, since its limbs are all near-0 and the audit's head-threshold doesn't
+     map onto a body that's rotated to lie flat.) */
   function auditPoses(){
     const FH = 100, headR=FH*.07, neckLen=FH*.04, torsoLen=FH*.22, upperLen=FH*.16, foreLen=FH*.15;
     for(const [name, p] of Object.entries(POSES)){
@@ -346,6 +360,7 @@ const LYRICS = [
     ctx.save();
     ctx.translate(o.x, o.y);
     ctx.scale(o.s || 1, o.s || 1);
+    if(o.rotation) ctx.rotate(o.rotation);
 
     const hip = [0, 0];
     const shoulderMid = [Math.sin(sw)*FH*.015, -torsoLen];
@@ -461,6 +476,11 @@ const LYRICS = [
   const s8At = () => LYRICS[7].t;      // "We know all the words, so it's special"
   const s9At = () => LYRICS[8].t;      // "So, so special"
   const s9EndAt = () => LYRICS[9].t;   // "I loved her and let her go" — next segment starts here
+  const s10At = () => LYRICS[9].t;     // "I loved her and let her go"
+  const s11At = () => LYRICS[10].t;    // "Maybe I'ma hold her close, get the fuck back"
+  const s12At = () => LYRICS[11].t;    // "I'm about to overdose, and she love that"
+  const s13At = () => LYRICS[12].t;    // "Story of a demon seducin'"
+  const s13EndAt = () => VERSE_DURATION;
   function getScene(t){
     const s2=s2At(), s3=s3At(), s4=s4At(), s5=s5At(), s6=s6At(), s6e=s6EndAt();
     const s7=s7At(), s8=s8At(), s9=s9At(), s9e=s9EndAt();
@@ -473,7 +493,11 @@ const LYRICS = [
     if(t < s8) return { scene: 7, local: clamp((t-s7)/((s8-s7)||.001),0,1) };
     if(t < s9) return { scene: 8, local: clamp((t-s8)/((s9-s8)||.001),0,1) };
     if(t < s9e) return { scene: 9, local: clamp((t-s9)/((s9e-s9)||.001),0,1) };
-    return { scene: 10, local: 1 };   // placeholder until the next segment's script is written
+    if(t < s11At()) return { scene: 10, local: clamp((t-s10At())/((s11At()-s10At())||.001),0,1) };
+    if(t < s12At()) return { scene: 11, local: clamp((t-s11At())/((s12At()-s11At())||.001),0,1) };
+    if(t < s13At()) return { scene: 12, local: clamp((t-s12At())/((s13At()-s12At())||.001),0,1) };
+    if(t < s13EndAt()) return { scene: 13, local: clamp((t-s13At())/((s13EndAt()-s13At())||.001),0,1) };
+    return { scene: 14, local: 1 };   // end of clipped verse
   }
 
   let lastBG = 0;
@@ -681,15 +705,35 @@ const LYRICS = [
       ctx.lineWidth = 3*dpr;
       ctx.strokeRect(tx - SNow*.09, ty - SNow*.30, SNow*.18, SNow*.30);
 
-      // shadowy demon silhouettes drifting in the background
+      // shadowy demon silhouettes drifting in the background — WITH HORNS
       for(let i = 0; i < 4; i++){
         const dx = (W * (0.12 + i*0.24)) + Math.sin(t*0.3 + i)*SNow*.02;
         const dy = H * .70 + Math.cos(t*0.2 + i*2)*SNow*.015;
-        drawStickFigure({
+        const demon = drawStickFigure({
           x: dx, y: dy, s: 0.55, alpha: 0.28 * fa,
           color: [30,6,10], sway: t*0.4 + i,
           pose: lerpPose(POSES.standRelaxed, POSES.bowedAlone, 0.6)
         });
+        // draw horns on the demon's head
+        const [hx, hy] = demon.head;
+        const hornScale = SNow * 0.55 * 0.07; // headR * scale
+        ctx.strokeStyle = `rgba(90,10,10,${0.28 * fa})`;
+        ctx.lineWidth = 2 * dpr;
+        ctx.lineCap = 'round';
+        // left horn
+        ctx.beginPath();
+        ctx.moveTo(hx - hornScale * 0.6, hy - hornScale * 0.3);
+        ctx.lineTo(hx - hornScale * 1.1, hy - hornScale * 1.2);
+        ctx.stroke();
+        // right horn
+        ctx.beginPath();
+        ctx.moveTo(hx + hornScale * 0.6, hy - hornScale * 0.3);
+        ctx.lineTo(hx + hornScale * 1.1, hy - hornScale * 1.2);
+        ctx.stroke();
+        // glowing red eyes
+        ctx.fillStyle = `rgba(255,30,20,${0.4 * fa})`;
+        ctx.beginPath(); ctx.arc(hx - hornScale * 0.25, hy, hornScale * 0.15, 0, 6.28); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx + hornScale * 0.25, hy, hornScale * 0.15, 0, 6.28); ctx.fill();
       }
 
       const maleR = drawStickFigure({
@@ -913,6 +957,139 @@ const LYRICS = [
       const chestX = hx, chestY = hy + SNow*.13;
       const flicker = (Math.sin(t*9) > 0.3 ? 1 : 0.15) * (0.5 + 0.5*Math.sin(t*1.4));
       drawHeart(chestX, chestY, SNow*.02, pal(1,'heart'), flicker * pa9 * (1-fadeOut*.4));
+    }
+
+    if(scene === 10){                 // SCENE 10 — The Street (she walks away, the heart leaves)
+      ctx.fillStyle = 'rgba(4,4,8,1)'; ctx.fillRect(-W,-H,W*3,H*3);
+      ctx.fillStyle = 'rgba(2,2,4,1)'; ctx.fillRect(-W,H*.75,W*3,H*2);
+
+      // flickering streetlight
+      const flick = 0.5 + 0.5*Math.sin(t*14) * (Math.random() > 0.06 ? 1 : 0.2);
+      const lx = W*.35, ly = H*.30;
+      const lg = ctx.createRadialGradient(lx,ly,0,lx,ly,SNow*.35);
+      lg.addColorStop(0, `rgba(255,240,200,${0.25*flick})`);
+      lg.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = lg; ctx.fillRect(0,0,W,H);
+
+      const pa10 = clamp(local*2, 0, 1);
+      const maleX = W*.28, maleY = H*.66;
+      drawStickFigure({ x:maleX, y:maleY, s:0.9, alpha:pa10, color:pal(1,'figA'), sway:t*.15, pose:POSES.standRelaxed });
+
+      // small heart/light rising out of his chest, dissipating
+      const heartFade = clamp(1 - local*1.2, 0, 1);
+      if(heartFade > 0.02) drawHeart(maleX, maleY - SNow*.20 - local*SNow*.08, SNow*.018, pal(0,'heart'), heartFade*0.7);
+
+      // she walks away — receding into the distance
+      const recede = clamp(local*1.3, 0, 1);
+      drawFemaleStickFigure({
+        x: W*.55 + recede*SNow*.25, y: maleY, s: 0.85*(1-recede*0.3), alpha: pa10,
+        color: pal(1,'figB'), sway: t*.4, facing: 1,
+        pose: lerpPose(POSES.standRelaxed, POSES.bowedWalking, 0.3)
+      });
+
+      // "fuck that" beat — approximate, no exact timestamp available; nudge local threshold after watching it play
+      const eyesFlash = local > 0.82 ? clamp((local-0.82)/0.1, 0, 1) : 0;
+      if(eyesFlash > 0){
+        ctx.fillStyle = `rgba(255,20,20,${0.5*eyesFlash})`;
+        ctx.beginPath(); ctx.arc(maleX-SNow*.01, maleY-SNow*.26, SNow*.006, 0, 6.28); ctx.fill();
+        ctx.beginPath(); ctx.arc(maleX+SNow*.01, maleY-SNow*.26, SNow*.006, 0, 6.28); ctx.fill();
+      }
+    }
+
+    if(scene === 11){                 // SCENE 11 — The Grab and the Shove (IK-solved reach)
+      const flash = Math.random() > 0.85 ? 0.15 : 0;
+      ctx.fillStyle = `rgba(20,4,8,${0.9+flash})`; ctx.fillRect(-W,-H,W*3,H*3);
+
+      const maleX = W*.42, maleY = H*.64;
+      const pullPhase = clamp(local/0.5, 0, 1);      // first half: yank her close
+      const pushPhase = clamp((local-0.5)/0.5, 0, 1); // second half: shove her back
+
+      // her x position: starts apart, gets pulled close, then knocked further back
+      const apartX = maleX + SNow*.16, closeX = maleX + SNow*.05, farX = maleX + SNow*.24;
+      const femaleX = pushPhase > 0 ? mix(closeX, farX, pushPhase) : mix(apartX, closeX, pullPhase);
+
+      // his reaching arm — IK-solved to actually grab her during the pull phase
+      const FH = SNow*.40, upperLen=FH*.16, foreLen=FH*.15, torsoLen=FH*.22;
+      const shoulderLocal = [0,-torsoLen];
+      const targetLocal = [ (femaleX - maleX)/0.9, -SNow*.05/0.9 ];
+      const reachArm = solveArmIK(shoulderLocal, targetLocal, upperLen, foreLen, 1);
+      const reachAmt = pushPhase > 0 ? clamp(1-pushPhase*2,0,1) : pullPhase;
+      const malePose = { ...POSES.standRelaxed, shoulderR: mix(POSES.standRelaxed.shoulderR, reachArm.shoulder, reachAmt), elbowR: mix(POSES.standRelaxed.elbowR, reachArm.elbow, reachAmt) };
+
+      // the male drawn with his reach arm blended in (same pose used to grab and to shove)
+      drawStickFigure({ x:maleX, y:maleY, s:0.9, alpha:1, color:pal(1,'figA'), sway:t*.6, pose:malePose });
+
+      drawFemaleStickFigure({ x:femaleX, y:maleY, s:0.85, alpha:1, color:pal(1,'figB'), sway:t*.6+1, pose:POSES.standRelaxed });
+
+      // shockwave line at the push moment
+      if(pushPhase > 0 && pushPhase < 0.3){
+        const wa = 1 - pushPhase/0.3;
+        ctx.strokeStyle = `rgba(255,255,255,${0.5*wa})`;
+        ctx.lineWidth = 4*dpr;
+        ctx.beginPath(); ctx.moveTo(maleX+SNow*.02, maleY-SNow*.15); ctx.lineTo(femaleX-SNow*.02, maleY-SNow*.15); ctx.stroke();
+      }
+    }
+
+    if(scene === 12){                 // SCENE 12 — Falling (pills rain, she watches)
+      ctx.fillStyle = 'rgba(6,4,8,1)'; ctx.fillRect(-W,-H,W*3,H*3);
+      const pa12 = clamp(local*2, 0, 1);
+      const shake = (Math.random()-.5) * SNow*.004 * pa12;
+
+      const maleX = W*.45+shake, maleY = H*.62;
+      drawStickFigure({
+        x:maleX, y:maleY, s:0.85, alpha:pa12*(Math.random()>0.08?1:0.4), color:pal(1,'figA'), sway:t*.8,
+        pose: lerpPose(POSES.standRelaxed, POSES.clutching, clamp(local*1.5,0,1))
+      });
+
+      // raining pills
+      for(let i=0;i<3;i++){
+        const py = ((t*0.9 + i*0.31) % 1);
+        const px = 0.35 + ((i*37) % 20)/60;
+        ctx.fillStyle = i%2===0 ? 'rgba(235,235,245,0.8)' : 'rgba(110,150,235,0.8)';
+        ctx.beginPath(); ctx.arc(px*W, py*H*.7, SNow*.005, 0, 6.28); ctx.fill();
+      }
+
+      // her, watching, unbothered
+      drawFemaleStickFigure({ x:W*.72, y:maleY, s:0.7, alpha:0.85, color:pal(1,'figB'), sway:t*.1, pose:POSES.standRelaxed });
+      // eerie smile outline
+      ctx.strokeStyle = 'rgba(255,120,120,0.5)'; ctx.lineWidth = 1.5*dpr;
+      ctx.beginPath(); ctx.arc(W*.72, maleY-SNow*.245, SNow*.012, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+    }
+
+    if(scene === 13){                 // SCENE 13 — The Void (lying flat, the reveal)
+      ctx.fillStyle = 'rgba(0,0,0,1)'; ctx.fillRect(-W,-H,W*3,H*3);
+      const pa13 = clamp(local*2, 0, 1);
+
+      drawStickFigure({
+        x: W*.5, y: H*.62, s: 0.85, alpha: pa13, color: pal(1,'figA'),
+        sway: t*.1, rotation: -Math.PI/2, pose: POSES.lyingFlat_male
+      });
+
+      const hoverY = H*.62 - SNow*.14 - local*SNow*.03;
+      const femR = drawFemaleStickFigure({ x: W*.5, y: hoverY, s: 0.8, alpha: pa13, color: [20,6,10], sway: t*.3, pose: POSES.standRelaxed });
+
+      // horns + glowing red eyes, revealed partway through
+      const reveal = clamp((local-0.3)/0.5, 0, 1);
+      if(reveal > 0){
+        const [hx, hy] = femR.head;
+        ctx.strokeStyle = `rgba(90,10,10,${reveal})`;
+        ctx.lineWidth = 2*dpr;
+        ctx.beginPath(); ctx.moveTo(hx-SNow*.015,hy-SNow*.01); ctx.lineTo(hx-SNow*.03,hy-SNow*.035); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hx+SNow*.015,hy-SNow*.01); ctx.lineTo(hx+SNow*.03,hy-SNow*.035); ctx.stroke();
+        ctx.fillStyle = `rgba(255,30,20,${reveal})`;
+        ctx.beginPath(); ctx.arc(hx-SNow*.008,hy,SNow*.004,0,6.28); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx+SNow*.008,hy,SNow*.004,0,6.28); ctx.fill();
+
+        // shadowy tendrils reaching toward him
+        for(let i=0;i<4;i++){
+          ctx.strokeStyle = `rgba(60,10,20,${0.4*reveal})`;
+          ctx.lineWidth = 2*dpr;
+          ctx.beginPath();
+          ctx.moveTo(hx + (i-1.5)*SNow*.03, hy+SNow*.05);
+          ctx.quadraticCurveTo(hx+(i-1.5)*SNow*.06, hy+SNow*.15+Math.sin(t*2+i)*SNow*.01, W*.5+(i-1.5)*SNow*.04, H*.62);
+          ctx.stroke();
+        }
+      }
     }
 
     // glass shards update + draw

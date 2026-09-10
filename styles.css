@@ -25,6 +25,18 @@ body{
   display: block; z-index: 0;
 }
 
+/* ---------- Launch cover: nebula galaxy + cursor companion ----------
+   #nebula hides the animated scene under the landing (z4, above #stage/#prog),
+   #mascot floats above the cover content (z6) but lets clicks pass through. */
+#nebula{
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 4; pointer-events: none;
+}
+#mascot{
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 6; pointer-events: none;
+}
+
 /* ---------- Stage ---------- */
 #stage{
   position: fixed; inset: 0; z-index: 1;
@@ -103,8 +115,10 @@ body{
 #cover{
   position: fixed; inset: 0; z-index: 5;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 1.4rem;
-  background: radial-gradient(120% 90% at 50% 0%, var(--bg1) 0%, var(--bg0) 75%);
+  gap: 1.6rem;
+  /* translucent so the nebula galaxy (z4) glows through; darker toward the
+     edges so the title and Play stay readable over the brightest core */
+  background: radial-gradient(120% 90% at 50% 35%, rgba(14,5,26,.10) 0%, rgba(4,0,12,.62) 82%);
   text-align: center; padding: 1.5rem;
 }
 #cover h1{
