@@ -246,7 +246,8 @@ const LYRICS = [
     },
     tightEmbrace_male: {               // Scene 9 — both arms wrapped tight around her
       headDroop: 0.3,
-      shoulderL: 1.1, elbowL: 0.9, shoulderR: 1.9, elbowR: 0.9,  // both arms wrapped around her
+      shoulderL: 1.1, elbowL: 0.9,     // left arm wrapping, was already correct
+      shoulderR: 1.0, elbowR: 0.5,     // was 1.9/0.9 — that sent the hand above his head
       hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7
     },
     heldClose_female: {                // Scene 9 — resting against his chest
