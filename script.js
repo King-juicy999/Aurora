@@ -226,22 +226,24 @@ const LYRICS = [
     },
     onBedTogether_male: {              // Scene 7 — seated/reclined on bed, arm wrapping around her
       headDroop: 0.15,
-      shoulderL: 2.3, elbowL: 0.4, shoulderR: 0.55, elbowR: -1.3,  // upper arm down-right, forearm hooks left across her back
+      shoulderL: 1.3, elbowL: 0.7,     // crosses his body right, around her back (was 2.3/0.4 = arm up-left)
+      shoulderR: 0.55, elbowR: -1.3,   // wraps her waist
       hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7               // seated/reclined on bed
     },
     onBedTogether_female: {            // Scene 7 — leaning into him on the bed
       headDroop: -0.2,
-      shoulderL: 1.1, elbowL: 0.5, shoulderR: 2.2, elbowR: 0.4,
+      shoulderL: -1.1, elbowL: 0.6, shoulderR: -1.2, elbowR: 0.5,  // both arms reach LEFT, onto him (was positive = away)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     },
     singingLeanIn_male: {              // Scene 8 — medium close-up, relaxed/open expression
       headDroop: -0.05,                 // slight upward, open expression
-      shoulderL: 2.6, elbowL: 0.15, shoulderR: 0.55, elbowR: -0.15,
+      shoulderL: 1.2, elbowL: 0.5,      // crosses around her (was 2.6/0.15 = arm straight up)
+      shoulderR: 0.55, elbowR: -0.15,   // right arm hangs, relaxed
       hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7
     },
     singingLeanIn_female: {            // Scene 8 — leaning in toward him, head up
       headDroop: -0.15,                 // leaning in toward him, head up/forward
-      shoulderL: 1.0, elbowL: 0.4, shoulderR: 2.2, elbowR: 0.3,
+      shoulderL: -1.0, elbowL: 0.5, shoulderR: -1.1, elbowR: 0.4,  // hands rest on his shoulders (was positive = away)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     },
     tightEmbrace_male: {               // Scene 9 — both arms wrapped tight around her
@@ -252,7 +254,7 @@ const LYRICS = [
     },
     heldClose_female: {                // Scene 9 — resting against his chest
       headDroop: 0.25,                  // resting against his chest
-      shoulderL: 1.6, elbowL: 0.3, shoulderR: 1.6, elbowR: 0.3,
+      shoulderL: -1.3, elbowL: 0.6, shoulderR: -1.4, elbowR: 0.5,  // both arms reach LEFT, around him (was positive = away)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     }
   };
