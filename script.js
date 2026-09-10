@@ -221,10 +221,10 @@ const LYRICS = [
       shoulderL: 1.35, elbowL: 0.85, shoulderR: 0.65, elbowR: 1.05, // left near face, right clutching gut
       hipL: 0.2, kneeL: 0.12, hipR: -0.2, kneeR: -0.12
     },
-    kneelingLeaning: {                 // female, kneeling in front of him — KNOWN BROKEN, flagged not fixed
-      // shoulderL: 2.0 sends the left hand above her own head. A sign flip won't fix it:
-      // this pose needs both hands DOWN on his knees, which requires re-tuning the whole
-      // arm chain against a render. Do not touch until redesign.
+    kneelingLeaning: {                 // female, kneeling — superseded by the IK-solved kneelPose in Scene 4
+      // Arm angles were never re-tuned (shoulderL: 2.0 floated the left hand above her head).
+      // Scene 4 now solves shoulder/elbow with solveArmIK so both hands land exactly on his
+      // near knee — this fixed-angle pose is kept only as historical data, not drawn.
       headDroop: -0.35,
       shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
       hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
@@ -289,6 +289,23 @@ const LYRICS = [
     const out = {};
     for(const k in a) out[k] = a[k] + (b[k] - a[k]) * m;
     return out;
+  }
+
+  // Analytic 2-bone IK: solves shoulder/elbow angles so the hand lands exactly
+  // on `target` (given in the same pre-scale local frame used inside drawStickFigure).
+  // side: +1 or -1 picks which way the elbow bends — try both and keep whichever
+  // looks anatomically correct, this function has no way to know that on its own.
+  function solveArmIK(shoulderPos, target, L1, L2, side){
+    const dx = target[0]-shoulderPos[0], dy = target[1]-shoulderPos[1];
+    let d = Math.hypot(dx, dy);
+    d = Math.min(d, L1+L2-1e-4);
+    d = Math.max(d, Math.abs(L1-L2)+1e-4);
+    const angleToTarget = Math.atan2(dx, dy);   // this rig: sin~x, cos~y
+    const c1 = clamp((L1*L1+d*d-L2*L2)/(2*L1*d), -1, 1);
+    const c2 = clamp((L1*L1+L2*L2-d*d)/(2*L1*L2), -1, 1);
+    const shoulderOffset = Math.acos(c1);
+    const elbowInterior = Math.acos(c2);
+    return { shoulder: angleToTarget - side*shoulderOffset, elbow: side*(Math.PI - elbowInterior) };
   }
 
   // Walk cycle following the classic sprite-sheet convention:
@@ -368,7 +385,9 @@ const LYRICS = [
       handL: [o.x + handL[0]*(o.s||1), o.y + handL[1]*(o.s||1)],
       handR: [o.x + handR[0]*(o.s||1), o.y + handR[1]*(o.s||1)],
       head:  [o.x + headX*(o.s||1), o.y + headY*(o.s||1)],
-      hip:   [o.x, o.y]
+      hip:   [o.x, o.y],
+      kneeL: [o.x + kneeL[0]*(o.s||1), o.y + kneeL[1]*(o.s||1)],
+      kneeR: [o.x + kneeR[0]*(o.s||1), o.y + kneeR[1]*(o.s||1)]
     };
   }
 
@@ -557,7 +576,7 @@ const LYRICS = [
     }
 
     // smoke — ramps up through the shatter, holds heavy in hell
-    const smokeAmt = scene === 1 ? .04 : scene === 2 ? .04 + .09 * local : .13;
+    const smokeAmt = scene === 1 ? .04 : scene === 2 ? .04 + .09 * local : scene === 4 ? .05 : .13;
     for(const p of smoke){
       p.x += Math.sin(t * .09 + p.p) * .00006;
       p.y -= p.s * .00011;
@@ -673,15 +692,32 @@ const LYRICS = [
         });
       }
 
-      drawStickFigure({
+      const maleR = drawStickFigure({
         x: tx, y: ty - SNow*.05, s: 0.85, alpha: fa,
-        color: pal(1,'figA'), sway: t*.15,
-        pose: POSES.seatedThrone
+        color: pal(1,'figA'), sway: t*.15, pose: POSES.seatedThrone
       });
+
+      // Solve her arms to actually reach his near knee — both hands together,
+      // not one per knee (the far knee is out of her arm's reach at this scale/position).
+      const femaleX = tx - SNow*.05, femaleY = ty + SNow*.10, sf = 0.75;
+      const FH = SNow*.40, upperLen = FH*.16, foreLen = FH*.15, torsoLen = FH*.22;
+      const shoulderLocal = [0, -torsoLen];
+      const target = maleR.kneeR;   // his nearer knee, world space
+      const targetLocal = [ (target[0]-femaleX)/sf, (target[1]-femaleY)/sf ];
+
+      const armL = solveArmIK(shoulderLocal, [targetLocal[0]-6, targetLocal[1]], upperLen, foreLen, -1);
+      const armR = solveArmIK(shoulderLocal, [targetLocal[0]+6, targetLocal[1]], upperLen, foreLen, 1);
+
+      const kneelPose = {
+        headDroop: -0.35,
+        shoulderL: armL.shoulder, elbowL: armL.elbow,
+        shoulderR: armR.shoulder, elbowR: armR.elbow,
+        hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0
+      };
+
       drawFemaleStickFigure({
-        x: tx - SNow*.05, y: ty + SNow*.10, s: 0.75, alpha: fa,
-        color: pal(1,'figB'), sway: t*.2,
-        pose: POSES.kneelingLeaning
+        x: femaleX, y: femaleY, s: sf, alpha: fa,
+        color: pal(1,'figB'), sway: t*.2, pose: kneelPose
       });
     }
 
