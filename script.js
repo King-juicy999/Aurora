@@ -154,123 +154,118 @@ function saveSync(){
     s:Math.random()*.5+.22, p:Math.random()*6.28
   });
 
-  /* ---- tapered glowing bone between two points ---- */
-  function bone(a,b,wA,wB,c,alpha){
-    const dx=b[0]-a[0], dy=b[1]-a[1];
-    const L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
-    const w1=wA*dpr, w2=wB*dpr;
-    // soft halo
-    ctx.globalCompositeOperation='lighter';
-    ctx.fillStyle=`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${alpha*.09})`;
+  /* ---- stick-figure limb and joint primitives ---- */
+  function strokeLimb(x1, y1, x2, y2, width, color, alpha){
+    ctx.strokeStyle = `rgba(${color[0]|0},${color[1]|0},${color[2]|0},${alpha})`;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(a[0]-nx*w1*4,a[1]-ny*w1*4); ctx.lineTo(b[0]-nx*w2*4,b[1]-ny*w2*4);
-    ctx.lineTo(b[0]+nx*w2*4,b[1]+ny*w2*4); ctx.lineTo(a[0]+nx*w1*4,a[1]+ny*w1*4);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
 
-    // body (tapered) — must be normal alpha blend, not additive, so it reads as a
-    // solid silhouette against any background instead of washing out
-    ctx.globalCompositeOperation='source-over';
-    ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
-    ctx.globalAlpha=alpha*.92;
+  function jointDot(x, y, r, color, alpha){
+    ctx.fillStyle = `rgba(${color[0]|0},${color[1]|0},${color[2]|0},${alpha})`;
     ctx.beginPath();
-    ctx.moveTo(a[0]-nx*w1,a[1]-ny*w1); ctx.lineTo(b[0]-nx*w2,b[1]-ny*w2);
-    ctx.lineTo(b[0]+nx*w2,b[1]+ny*w2); ctx.lineTo(a[0]+nx*w1,a[1]+ny*w1);
-    ctx.closePath(); ctx.fill();
-    ctx.globalAlpha=1;
-    // hot thread
-    ctx.strokeStyle=`rgba(255,255,255,${alpha*.35})`;
-    ctx.lineWidth=Math.max(.4,Math.min(w1,w2)*.4); ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-    ctx.globalCompositeOperation='source-over';
+    ctx.arc(x, y, r, 0, 6.28);
+    ctx.fill();
   }
 
-  function glowDot(x,y,r,c,alpha){
-    ctx.globalCompositeOperation='lighter';
-    const g=ctx.createRadialGradient(x,y,0,x,y,r*4);
-    g.addColorStop(0,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${alpha})`);
-    g.addColorStop(1,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},0)`);
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r*4,0,6.28); ctx.fill();
-    ctx.globalCompositeOperation='source-over';
+  /* ---- keyframed joint-angle poses ----
+     A pose is { headTilt, shoulderL, elbowL, shoulderR, elbowR, hipL, kneeL, hipR, kneeR }
+     Angles are in radians: 0 = limb straight down for legs, straight out to the
+     side for arms; each segment's angle adds onto its parent's. */
+  const POSES = {
+    standRelaxed: {
+      headTilt: 0,
+      shoulderL: 2.6, elbowL: 0.15,   // left arm hanging at side, slight elbow bend
+      shoulderR: 0.55, elbowR: -0.15, // right arm hanging at side
+      hipL: 0.15, kneeL: 0.05,
+      hipR: -0.15, kneeR: -0.05
+    },
+    reachingCenter_left: {            // for the LEFT figure's inner (right) arm, reaching to hold hands
+      headTilt: -0.08,
+      shoulderL: 2.6, elbowL: 0.15,
+      shoulderR: 1.35, elbowR: 0.25,  // inner arm raised toward center chest height
+      hipL: 0.12, kneeL: 0.04,
+      hipR: -0.12, kneeR: -0.04
+    },
+    reachingCenter_right: {            // mirror, for the RIGHT figure's inner (left) arm
+      headTilt: 0.08,
+      shoulderL: 1.8, elbowL: -0.25,
+      shoulderR: 0.55, elbowR: -0.15,
+      hipL: 0.12, kneeL: 0.04,
+      hipR: -0.12, kneeR: -0.04
+    },
+    bowedAlone: {                     // Hell — head down, arms limp, weight sunk
+      headTilt: 0.9,
+      shoulderL: 2.75, elbowL: 0.35,
+      shoulderR: 0.4, elbowR: -0.35,
+      hipL: 0.25, kneeL: 0.18,
+      hipR: -0.25, kneeR: -0.18
+    }
+  };
+
+  function lerpPose(a, b, m){
+    const out = {};
+    for(const k in a) out[k] = a[k] + (b[k] - a[k]) * m;
+    return out;
   }
 
-  // Opaque solid circle — for the head and joint caps, so the figure reads as a
-  // real filled body, not a bone rig. Normal alpha blend (not additive).
-  function solidDot(x, y, r, c, alpha){
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${alpha})`;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
-  }
-
-  /* ---- two-bone IK arm reaching a target; returns [elbow, wrist] ---- */
-  function ikArm(shoulder, target, up, lo, side){
-    let dx=target[0]-shoulder[0], dy=target[1]-shoulder[1];
-    let d=Math.hypot(dx,dy)||1;
-    const maxR=up+lo*.99;
-    if(d>maxR){ target=[shoulder[0]+dx/d*maxR, shoulder[1]+dy/d*maxR]; dx=target[0]-shoulder[0]; dy=target[1]-shoulder[1]; d=Math.hypot(dx,dy)||1; }
-    const nx=-dy/d, ny=dx/d;
-    const bend=side*Math.min(up*.85, d*.5);
-    return [ [(shoulder[0]+target[0])/2+nx*bend, (shoulder[1]+target[1])/2+ny*bend], target ];
-  }
-
-  /* ---- abstract humanoid figure (tapered glow bones)
-         o: {x,y,s,f,alpha,sway,headDrop,lean,leftTarget,rightTarget,c} ---- */
-  function drawFigure(o){
-    const SNow = Math.min(W,H);
-    const FH = SNow*.46;
-    const torso=FH*.24, neck=FH*.05, headR=FH*.072;
-    const up=FH*.185, lo=FH*.165, thigh=FH*.25, shin=FH*.22;
+  /* ---- classic stick-figure renderer (keyframed joint angles, not IK)
+         o: { x, y, s, alpha, color, pose, sway }
+         returns the two hand positions in world space (for hand-join checks) ---- */
+  function drawStickFigure(o){
+    const SNow = Math.min(W, H);
+    const FH = SNow * .40;                 // overall figure height reference
+    const headR = FH * .07;
+    const neckLen = FH * .04, torsoLen = FH * .22;
+    const upperLen = FH * .16, foreLen = FH * .15;
+    const thighLen = FH * .22, shinLen = FH * .20;
+    const lw = FH * .022;                  // limb line width
+    const c = o.color, a = o.alpha, p = o.pose;
     const sw = o.sway || 0;
-    const bob = Math.abs(Math.sin(sw*.5))*FH*.012;
+
     ctx.save();
     ctx.translate(o.x, o.y);
     ctx.scale(o.s || 1, o.s || 1);
-    const a=o.alpha, c=o.c;
-    const chest=[(o.lean||0)*FH + Math.sin(sw)*FH*.02, -torso + bob];
-    // headDrop: clamp to a small tilt (was FH*.42 — ~9× too large, it flung the
-    // bowed protagonist's head glow well past the torso). Head stays just below
-    // the chest as a lowered/bowed neck instead of a big displacement.
-    const dropAmount = Math.min(o.headDrop || 0, 1) * headR * 2.2;
-    const headY = chest[1] - neck - headR * 0.4 + dropAmount;
 
-    // legs (rooted at the hip)
-    const lx=Math.sin(sw*.7)*FH*.05;
-    bone([0,0],[lx,thigh],.042*FH,.024*FH,c,a);
-    solidDot(lx,thigh,.024*FH,c,a);                    // knee cap
-    bone([lx,thigh],[lx,thigh+shin],.024*FH,.012*FH,c,a);
-    bone([0,0],[-lx*.8,thigh],.042*FH,.024*FH,c,a);
-    solidDot(-lx*.8,thigh,.024*FH,c,a);                // knee cap
-    bone([-lx*.8,thigh],[-lx*.8,thigh+shin],.024*FH,.012*FH,c,a);
+    const hip = [0, 0];
+    const shoulderMid = [Math.sin(sw)*FH*.015, -torsoLen];
+    strokeLimb(hip[0], hip[1], shoulderMid[0], shoulderMid[1], lw*1.3, c, a); // spine
 
-    // torso + head
-    bone([0,0],chest,.048*FH,.034*FH,c,a);
-    solidDot(0,0,.042*FH,c,a);                          // hip/shoulder joint cap
-    // head: soft ambient glow first (additive, atmosphere only)...
-    ctx.globalCompositeOperation='lighter';
-    const hg=ctx.createRadialGradient(chest[0],headY,0,chest[0],headY,headR*3);
-    hg.addColorStop(0,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a*.28})`);
-    hg.addColorStop(1,`rgba(${c[0]|0},${c[1]|0},${c[2]|0},0)`);
-    ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(chest[0],headY,headR*3,0,6.28); ctx.fill();
-    ctx.globalCompositeOperation='source-over';
-    // ...then a solid, opaque head on top so it reads as a real head, not a smear
-    solidDot(chest[0], headY, headR, c, a);
+    const neckTop = [shoulderMid[0], shoulderMid[1] - neckLen];
+    strokeLimb(shoulderMid[0], shoulderMid[1], neckTop[0], neckTop[1], lw, c, a); // neck
 
-    // arms via IK (default: hanging low at the sides)
-    const sh=[chest[0], chest[1]+neck*.3];
-    const tL=o.leftTarget  || [chest[0]-o.f*FH*.30, chest[1]+(up+lo)*.95];
-    const tR=o.rightTarget || [chest[0]+o.f*FH*.18, chest[1]+(up+lo)*.9];
-    const [eL,wL]=ikArm(sh,tL,up,lo,-o.f);
-    const [eR,wR]=ikArm(sh,tR,up,lo, o.f);
-    bone(sh,eL,.032*FH,.022*FH,c,a);
-    solidDot(eL[0],eL[1],.022*FH,c,a);                 // elbow cap
-    bone(eL,wL,.022*FH,.011*FH,c,a);
-    bone(sh,eR,.032*FH,.022*FH,c,a);
-    solidDot(eR[0],eR[1],.022*FH,c,a);                 // elbow cap
-    bone(eR,wR,.022*FH,.011*FH,c,a);
-    glowDot(wL[0],wL[1],.012*FH,c,a*.8);
-    solidDot(wL[0],wL[1],.012*FH,c,a);                 // wrist cap
-    glowDot(wR[0],wR[1],.012*FH,c,a*.8);
-    solidDot(wR[0],wR[1],.012*FH,c,a);                 // wrist cap
+    const headY = neckTop[1] - headR + p.headTilt * headR * 0.6;
+    const headX = neckTop[0] + p.headTilt * headR * 1.2;
+    jointDot(headX, headY, headR, c, a); // head circle
+
+    // legs
+    const kneeL = [hip[0] + Math.sin(p.hipL)*thighLen, hip[1] + Math.cos(p.hipL)*thighLen];
+    const footL = [kneeL[0] + Math.sin(p.hipL+p.kneeL)*shinLen, kneeL[1] + Math.cos(p.hipL+p.kneeL)*shinLen];
+    strokeLimb(hip[0], hip[1], kneeL[0], kneeL[1], lw, c, a);
+    strokeLimb(kneeL[0], kneeL[1], footL[0], footL[1], lw*.8, c, a);
+
+    const kneeR = [hip[0] + Math.sin(p.hipR)*thighLen, hip[1] + Math.cos(p.hipR)*thighLen];
+    const footR = [kneeR[0] + Math.sin(p.hipR+p.kneeR)*shinLen, kneeR[1] + Math.cos(p.hipR+p.kneeR)*shinLen];
+    strokeLimb(hip[0], hip[1], kneeR[0], kneeR[1], lw, c, a);
+    strokeLimb(kneeR[0], kneeR[1], footR[0], footR[1], lw*.8, c, a);
+
+    // arms
+    const elbowL = [shoulderMid[0] + Math.sin(p.shoulderL)*upperLen, shoulderMid[1] + Math.cos(p.shoulderL)*upperLen];
+    const handL  = [elbowL[0] + Math.sin(p.shoulderL+p.elbowL)*foreLen, elbowL[1] + Math.cos(p.shoulderL+p.elbowL)*foreLen];
+    strokeLimb(shoulderMid[0], shoulderMid[1], elbowL[0], elbowL[1], lw*.85, c, a);
+    strokeLimb(elbowL[0], elbowL[1], handL[0], handL[1], lw*.7, c, a);
+
+    const elbowR = [shoulderMid[0] + Math.sin(p.shoulderR)*upperLen, shoulderMid[1] + Math.cos(p.shoulderR)*upperLen];
+    const handR  = [elbowR[0] + Math.sin(p.shoulderR+p.elbowR)*foreLen, elbowR[1] + Math.cos(p.shoulderR+p.elbowR)*foreLen];
+    strokeLimb(shoulderMid[0], shoulderMid[1], elbowR[0], elbowR[1], lw*.85, c, a);
+    strokeLimb(elbowR[0], elbowR[1], handR[0], handR[1], lw*.7, c, a);
+
     ctx.restore();
+    return { handL: [o.x+handL[0]*(o.s||1), o.y+handL[1]*(o.s||1)], handR: [o.x+handR[0]*(o.s||1), o.y+handR[1]*(o.s||1)] };
   }
 
   /* ---- small glowing heart shape ---- */
@@ -443,20 +438,20 @@ function saveSync(){
     if(scene === 1 || scene === 2){
       const heartX = W / 2, heartY = H * .54;
       const side = fh * 1.05;
-      const reach = 1 - sep;                    // reach of each clasped hand toward the other
+      // reachAmount: inner arms ease up into the clasp over the opening of heaven,
+      // then drop back toward the sides as the hands part mid-shatter (0 = at side)
+      const reachAmount = scene === 1 ? clamp(local / .3, 0, 1) : clamp(1 - sep, 0, 1);
       // full alpha in heaven; across the shatter the pair fade out by local = 1
       const figAlpha = .95 * (scene === 1 ? 1 : clamp(1 - clamp((local - .5) / .5, 0, 1), 0, 1));
-      drawFigure({
-        x: W / 2 - side, y: heartY + fh * .45, s: 1, f: 1, c: pal(mp, 'figA'),
-        alpha: figAlpha, sway: t * .35, headDrop: .04,
-        leftTarget:  [ -fh * .32, fh * .42 ],
-        rightTarget: [ side * reach, -fh * .45 * (1 - sep) + fh * .35 * sep ]
+      drawStickFigure({
+        x: W / 2 - side, y: heartY + fh * .45, s: 1,
+        alpha: figAlpha, color: pal(mp, 'figA'), sway: t * .35,
+        pose: lerpPose(POSES.standRelaxed, POSES.reachingCenter_left, reachAmount)
       });
-      drawFigure({
-        x: W / 2 + side, y: heartY + fh * .45, s: 1, f: -1, c: pal(mp, 'figB'),
-        alpha: figAlpha, sway: -t * .35, headDrop: .04,
-        leftTarget:  [ -side * reach, -fh * .45 * (1 - sep) + fh * .35 * sep ],
-        rightTarget: [ fh * .32, fh * .42 ]
+      drawStickFigure({
+        x: W / 2 + side, y: heartY + fh * .45, s: 1,
+        alpha: figAlpha, color: pal(mp, 'figB'), sway: -t * .35,
+        pose: lerpPose(POSES.standRelaxed, POSES.reachingCenter_right, reachAmount)
       });
       if(scene === 1){
         drawHeart(heartX, heartY, fh * .13, pal(0, 'heart'), .9);   // the full heart
@@ -472,11 +467,16 @@ function saveSync(){
         }
       }
     }
-    // the protagonist — alone, head bowed, in hell (alpha from scene time, not w)
+    // the protagonist — alone, head bowed, in hell. Alpha and the bowed pose both
+    // ease in on the same pa fade, so he sinks into the slump instead of popping
+    // in already crumpled, and stays almost motionless (slow, heavy sway).
     if(scene === 3){
       const pa = clamp((t - s3At()) * 2, 0, 1);
-      drawFigure({ x: W / 2, y: H * .60, s: .9, f: 1, c: pal(1, 'figA'),
-        alpha: .95 * pa, sway: t * .22, headDrop: .9, lean: .05 });
+      drawStickFigure({
+        x: W / 2, y: H * .60, s: .9,
+        alpha: .95 * pa, color: pal(1, 'figA'), sway: t * .22,
+        pose: lerpPose(POSES.standRelaxed, POSES.bowedAlone, pa)
+      });
     }
 
     // glass shards update + draw
