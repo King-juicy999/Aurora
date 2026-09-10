@@ -126,55 +126,6 @@ body{
 #startBtn:focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; }
 #cover .meta{ font-size: .74rem; color: var(--ink-dim); letter-spacing: .05em; }
 
-#syncBtn{
-  appearance: none; cursor: pointer;
-  font-family: inherit; font-weight: 600; font-size: .82rem; color: var(--ink-dim);
-  padding: .55rem 1.4rem; border-radius: 999px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.12);
-  transition: transform .1s ease, filter .18s ease, color .18s ease, border-color .18s ease;
-}
-#syncBtn:hover{ filter: brightness(1.25); color: var(--ink); border-color: rgba(123,43,255,.5); }
-#syncBtn:active{ transform: scale(.97); }
-#syncBtn:focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; }
 #cover .hint{ font-size: .72rem; opacity: .7; margin-top: .2rem; }
 #cover .hint.on{ color: #7dfaff; opacity: 1; }
 
-/* ---------- Calibration overlay ---------- */
-#calib{
-  position: fixed; inset: 0; z-index: 6;
-  display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(120% 90% at 50% 0%, rgba(18,7,31,.92) 0%, rgba(6,1,15,.96) 75%);
-}
-#calib[hidden]{ display: none; }
-.calib-inner{ text-align: center; max-width: 34em; padding: 2rem 1.6rem; }
-.calib-top{
-  font-size: .74rem; text-transform: uppercase; letter-spacing: .22em;
-  color: var(--ink-dim); margin-bottom: .8rem;
-}
-.calib-num{
-  font-family: "Anton", Impact, sans-serif; font-weight: 400;
-  font-size: clamp(3rem, 9vw, 5.5rem); line-height: 1;
-  color: var(--ink); text-shadow: 0 0 40px rgba(123,43,255,.6);
-  font-variant-numeric: tabular-nums; margin-bottom: .9rem;
-}
-.calib-line{
-  font-size: clamp(1.1rem, 3.4vw, 1.6rem); color: #d0a6ff; font-weight: 600;
-  min-height: 2.2em; margin-bottom: 1.4rem;
-}
-.calib-dots{ display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1.6rem; }
-.calib-dots span{
-  width: 12px; height: 12px; border-radius: 50%;
-  background: rgba(255,255,255,.1); transition: background .14s ease, box-shadow .14s ease, transform .14s ease;
-}
-.calib-dots span.done{ background: linear-gradient(135deg, var(--accent), #ff2ecb); box-shadow: 0 0 8px rgba(123,43,255,.8); }
-.calib-dots span.live{ background: #fff; transform: scale(1.35); box-shadow: 0 0 12px rgba(255,255,255,.9); }
-.calib-hint{ font-size: .86rem; color: var(--ink); }
-.calib-hint b{ color: #7dfaff; }
-.calib-sub{ font-size: .74rem; color: var(--ink-dim); margin-top: .7rem; line-height: 1.5; }
-#calib.flash .calib-inner{ animation: calibPulse .18s ease; }
-@keyframes calibPulse{
-  0%{ transform: scale(1); }
-  40%{ transform: scale(1.03); }
-  100%{ transform: scale(1); }
-}

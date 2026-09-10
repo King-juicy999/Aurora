@@ -2,6 +2,10 @@
    One true source of playback time — no CSS-string round-trip between systems. */
 window.__playback = { t: 0 };
 
+/* One-time cleanup (remove in a future commit): drop stale tap-sync data left
+   in a returning user's browser from before the sync feature was removed. */
+try{ localStorage.removeItem('underworld-verse2-times-v2'); }catch(e){}
+
 /* ============================================================
    Underworld · Verse 2 — lyrics & beat-sync timing
    ------------------------------------------------------------
@@ -26,7 +30,6 @@ const SIXTEENTH = BEAT / 4;       // 0.09375s
 const BAR = BEAT * 4;             // 1.5s per bar
 const VERSE_DURATION = 36.4;      // full verse window (clipped from full song)
 const REACTION = 0.12;            // (s) human tap delay subtracted per tap
-const SYNC_STORE_KEY = 'underworld-verse2-times-v2';
 
 const LYRICS = [
   { t: 0.000,   text: "Here we go" },
@@ -44,25 +47,6 @@ const LYRICS = [
   { t: 32.860,  text: "Story of a demon seducin'" },
   { t: 34.540,  text: "a young drug head" },
 ];
-
-/* ---- persistent timings: restore if the user has ever tapped a sync ---- */
-let baseTimes = null;             // snapshot used by "0 reset" / Esc cancel
-(function loadSync(){
-  try{
-    const raw = localStorage.getItem(SYNC_STORE_KEY);
-    if(!raw) return;
-    const arr = JSON.parse(raw);
-    if(Array.isArray(arr) && arr.length === LYRICS.length){
-      arr.forEach((t, i) => { LYRICS[i].t = Math.max(0, +t || 0); });
-      baseTimes = LYRICS.map(l => l.t);
-    }
-  }catch(e){ /* bad/corrupt storage → keep fallback grid */ }
-})();
-
-function saveSync(){
-  try{ localStorage.setItem(SYNC_STORE_KEY, JSON.stringify(LYRICS.map(l => l.t))); }
-  catch(e){}
-}
 
 /* ============================================================
    ANIMATION SCRIPT — Opening Scene ("Heaven to Hell")
