@@ -18,9 +18,6 @@ window.__playback = { t: 0 };
    recognition (faster-whisper base.en) on underworld-verse2.mp3.
    Each t is the second the vocal for that line actually starts —
    no tapping, no grid math.
-   Re-sync anytime with the on-screen "Sync lyrics to audio" button;
-   Space-taps snap to the 16th grid, save to localStorage, and override
-   these defaults on later loads.
    ============================================================ */
 const BPM = 160;
 const BEAT = 60 / BPM;            // 0.375s per beat
@@ -187,13 +184,13 @@ function saveSync(){
     reachingCenter_left: {            // for the LEFT figure's inner (right) arm, reaching to hold hands
       headTilt: -0.08,
       shoulderL: 2.6, elbowL: 0.15,
-      shoulderR: 1.35, elbowR: 0.25,  // inner arm raised toward center chest height
+      shoulderR: 1.6551, elbowR: 0.9195,  // inner arm reaches across to clasp hands at the heart
       hipL: 0.12, kneeL: 0.04,
       hipR: -0.12, kneeR: -0.04
     },
     reachingCenter_right: {            // mirror, for the RIGHT figure's inner (left) arm
       headTilt: 0.08,
-      shoulderL: 1.8, elbowL: -0.25,
+      shoulderL: -1.6551, elbowL: -0.9195,  // mirrored reach, hand lands on the same heart point
       shoulderR: 0.55, elbowR: -0.15,
       hipL: 0.12, kneeL: 0.04,
       hipR: -0.12, kneeR: -0.04
@@ -437,7 +434,7 @@ function saveSync(){
     const sep = scene === 2 ? local : 0;        // 0 clasped → 1 the hands have parted
     if(scene === 1 || scene === 2){
       const heartX = W / 2, heartY = H * .54;
-      const side = fh * 1.05;
+      const side = fh * .30;                    // tightened so the lovers' inner hands can reach the heart
       // reachAmount: inner arms ease up into the clasp over the opening of heaven,
       // then drop back toward the sides as the hands part mid-shatter (0 = at side)
       const reachAmount = scene === 1 ? clamp(local / .3, 0, 1) : clamp(1 - sep, 0, 1);
@@ -547,33 +544,21 @@ function saveSync(){
   const progFill = document.getElementById('progFill');
   const cover    = document.getElementById('cover');
   const coverMeta= document.getElementById('coverMeta');
-  const coverHint= document.getElementById('coverHint');
   const caption  = document.getElementById('caption');
   const startBtn = document.getElementById('startBtn');
-  const syncBtn  = document.getElementById('syncBtn');
-  const calib    = document.getElementById('calib');
-  const calibNum = document.getElementById('calibNum');
-  const calibLine= document.getElementById('calibLine');
-  const calibDots= document.getElementById('calibDots');
-  const $calibSub= document.getElementById('calibSub');
   const audioSrc = 'underworld-verse2.mp3';
 
   let audio = null, audioReady = false, ctxAC = null, analyser = null;
   let started = false;
+  let startedAt = 0;
   let curIdx  = -1;
   let acc = 0, wordIdx = 0, activeWords = [];
-
-  /* ---- tap-sync state ---- */
-  let syncMode = false;
-  let syncBefore = null;       // LYRICS times captured before a sync run
-  let calibTaps = [];
 
   /* ---- prepare audio + analyser (idempotent) ---- */
   function prepareAudio(){
     if(audioReady) return;
     audioReady = true;
     coverMeta.textContent = BPM + ' bpm · 4/4 · B♭ Minor';
-    if(baseTimes) coverHint.textContent = '✓ lyrics synced — press S anytime to re-sync';
     audio = document.createElement('audio');
     audio.src = audioSrc;
     audio.loop = true;
@@ -668,13 +653,11 @@ function saveSync(){
       const dur = (audio && audio.duration) ? audio.duration : VERSE_DURATION;
       progFill.style.width = (Math.min(t / dur, 1) * 100) + '%';
 
-      if(!syncMode){
-        let i = curIdx;
-        for(let k = 0; k < LYRICS.length; k++) if(t >= LYRICS[k].t) i = k;
-        setLine(i);
-        stepWords(dt);
-        pulse();
-      }
+      let i = curIdx;
+      for(let k = 0; k < LYRICS.length; k++) if(t >= LYRICS[k].t) i = k;
+      setLine(i);
+      stepWords(dt);
+      pulse();
     }
     requestAnimationFrame(tick);
   }
@@ -691,100 +674,10 @@ function saveSync(){
     showCaption._t = setTimeout(()=> caption.classList.remove('show'), ms || 3500);
   }
 
-  /* ================= TAP-SYNC (built-in calibration) ================= */
-
-  function buildCalibDots(){
-    calibDots.innerHTML = '';
-    for(let i = 0; i < LYRICS.length; i++){
-      const s = document.createElement('span');
-      s.dataset.i = i; calibDots.appendChild(s);
-    }
-  }
-  function renderCalibDots(n){
-    [...calibDots.children].forEach(sp => {
-      const i = +sp.dataset.i;
-      sp.className = i < n ? 'done' : i === n ? 'live' : '';
-    });
-    calibNum.textContent = `${Math.min(n, LYRICS.length)} / ${LYRICS.length}`;
-  }
-  function calibFlash(){
-    calib.classList.add('flash');
-    clearTimeout(calibFlash._t);
-    calibFlash._t = setTimeout(()=> calib.classList.remove('flash'), 200);
-  }
-
-  async function enterSync(){
-    await prepareAudio();
-    closeCover();
-    syncMode = true;
-    syncBefore = LYRICS.map(l => l.t);
-    calibTaps = [];
-    calib.hidden = false;
-    renderCalibDots(0);
-    calibLine.textContent = '"' + LYRICS[0].text + '"';
-    started = true;
-    startedAt = performance.now();
-    last = performance.now();
-    audio.currentTime = 0;
-    try{ await audio.play(); }catch(e){}
-  }
-
-  function recordTap(){
-    if(!syncMode || !audio) return;
-    calibTaps.push(audio.currentTime);
-    const n = calibTaps.length;
-    renderCalibDots(n);
-    calibFlash();
-    if(n < LYRICS.length){
-      calibLine.textContent = '"' + LYRICS[n].text + '"';
-    }
-    if(n >= LYRICS.length) finishSync();
-  }
-
-  function finishSync(){
-    let prev = -Infinity;
-    const dur = (audio && audio.duration) || VERSE_DURATION;
-    for(let i = 0; i < LYRICS.length; i++){
-      let t = Math.max(0, calibTaps[i] - REACTION);
-      t = Math.round(t / SIXTEENTH) * SIXTEENTH;          // snap to 16th grid
-      if(t <= prev) t = prev + SIXTEENTH;                 // keep strictly ascending
-      LYRICS[i].t = Math.min(t, dur);
-      prev = LYRICS[i].t;
-    }
-    baseTimes = LYRICS.map(l => l.t);
-    saveSync();
-    calibNum.textContent = '14 / 14';
-    calibLine.textContent = 'Synced ✓';
-    $calibSub.textContent = 'Timings snapped, saved to this browser, and live in the animation.';
-    setTimeout(()=>{
-      syncMode = false;
-      calib.hidden = true;
-      audio.currentTime = 0;      // replay the verse with the real timings
-      curIdx = -1;
-    }, 1600);
-  }
-
-  function cancelSync(){
-    if(syncBefore) LYRICS.forEach((l,i) => l.t = syncBefore[i]);
-    syncMode = false;
-    calib.hidden = true;
-    audio.currentTime = 0;
-    curIdx = -1;
-    showCaption('Sync cancelled — previous timings kept.', 2200);
-  }
-  function undoTap(){
-    if(!calibTaps.length) return;
-    calibTaps.pop();
-    renderCalibDots(calibTaps.length);
-    calibLine.textContent = '"' + (LYRICS[calibTaps.length] ? LYRICS[calibTaps.length].text : '') + '"';
-  }
-
   /* ================= cover buttons ================= */
   startBtn.addEventListener('click', async ()=>{
     await prepareAudio();
     closeCover();
-    calib.hidden = true;
-    syncMode = false;
     curIdx = -1;
     startedAt = performance.now();
     started = true;
@@ -792,46 +685,6 @@ function saveSync(){
     try{ await audio.play(); }catch(e){}
     showCaption('Underworld · verse 2 · ' + BPM + ' bpm', 3500);
   });
-
-  syncBtn.addEventListener('click', enterSync);
-
-  /* ================= keyboard ================= */
-  addEventListener('keydown', e=>{
-    if(syncMode){
-      if(e.code === 'Space'){ e.preventDefault(); recordTap(); }
-      else if(e.key === '0'){ e.preventDefault(); undoTap(); }
-      else if(e.key === 'Escape'){ e.preventDefault(); cancelSync(); }
-      return;
-    }
-    if(!started) return;
-    if(e.key === 'ArrowLeft'){ nudgeCur(-.25); e.preventDefault(); }
-    else if(e.key === 'ArrowRight'){ nudgeCur(.25); e.preventDefault(); }
-    else if(e.key === '['){ nudgeCur(-.05); e.preventDefault(); }
-    else if(e.key === ']'){ nudgeCur(.05); e.preventDefault(); }
-    else if(e.key === '0'){ resetCur(); e.preventDefault(); }
-    else if(e.key.toLowerCase() === 'm'){ markNow(); e.preventDefault(); }
-    else if(e.key.toLowerCase() === 's'){ enterSync(); e.preventDefault(); }
-  });
-
-  function nudgeCur(d){
-    if(curIdx < 0) return;
-    LYRICS[curIdx].t = Math.max(0, LYRICS[curIdx].t + d);
-    saveSync();
-    showCaption(`Line ${curIdx+1} → ${LYRICS[curIdx].t.toFixed(2)}s`, 1800);
-  }
-  function resetCur(){
-    if(curIdx < 0) return;
-    LYRICS[curIdx].t = baseTimes ? baseTimes[curIdx] : (curIdx ? LYRICS[curIdx].t : 0);
-    saveSync();
-    showCaption(`Line ${curIdx+1} reset → ${LYRICS[curIdx].t.toFixed(2)}s`, 1800);
-  }
-  function markNow(){
-    if(curIdx < 0) return;
-    const t = (audio && audio.duration) ? audio.currentTime : 0;
-    LYRICS[curIdx].t = Math.max(0, t);
-    saveSync();
-    showCaption(`Line ${curIdx+1} marked at ${t.toFixed(2)}s`, 1800);
-  }
 
   requestAnimationFrame(tick);
 })();
