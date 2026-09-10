@@ -135,6 +135,17 @@ const LYRICS = [
     s:Math.random()*.5+.22, p:Math.random()*6.28
   });
 
+  /* Falling fire — distinct from the ambient embers: longer streaks, faster,
+     straight-down motion, only active in Hell. Screen-space overlay so it reads
+     as rain between the camera and the viewer, unaffected by camera zoom/orbit. */
+  const fireRain = [];
+  for(let i = 0; i < 50; i++) fireRain.push({
+    x: Math.random(), y: Math.random(),
+    len: Math.random() * 40 + 20,
+    speed: Math.random() * .55 + .35,
+    drift: (Math.random() - .5) * .05
+  });
+
   /* ---- stick-figure limb and joint primitives ---- */
   function strokeLimb(x1, y1, x2, y2, width, color, alpha){
     ctx.strokeStyle = `rgba(${color[0]|0},${color[1]|0},${color[2]|0},${alpha})`;
@@ -185,6 +196,33 @@ const LYRICS = [
       shoulderR: 0.4, elbowR: -0.35,
       hipL: 0.25, kneeL: 0.18,
       hipR: -0.25, kneeR: -0.18
+    },
+    bowedWalking: {                    // Hell — head bowed, arms hanging at sides, legs driven by walkCycle
+      headTilt: 0.85,
+      shoulderL: 0.15, elbowL: 0.1,    // left arm hangs down, slight splay
+      shoulderR: -0.15, elbowR: -0.1,  // right arm hangs down — arms driven by walkCycle counter-swing
+      hipL: 0, kneeL: 0,                // legs overridden every frame by walkCycle()
+      hipR: 0, kneeR: 0
+    },
+    seatedThrone: {                    // male, sitting — arms resting on armrests, not raised
+      headTilt: -0.08,
+      shoulderL: 0.65, elbowL: 0.35, shoulderR: -0.65, elbowR: -0.35,  // arms resting down on armrests
+      hipL: 1.5, kneeL: -1.4, hipR: -1.5, kneeR: 1.4   // thighs forward, shins down — seated silhouette
+    },
+    seatedHunched: {                    // male, hunched on bed edge — elbows on knees, pill palm low
+      headTilt: 0.35,
+      shoulderL: 0.85, elbowL: 0.55, shoulderR: 0.2, elbowR: 0.3,   // right hand low near lap for pills
+      hipL: 1.5, kneeL: -1.4, hipR: -1.5, kneeR: 1.4
+    },
+    clutching: {                        // betrayal — doubled over, left hand to head, right to stomach
+      headTilt: 0.55,
+      shoulderL: 1.35, elbowL: 0.85, shoulderR: 0.65, elbowR: 1.05, // left near face, right clutching gut
+      hipL: 0.2, kneeL: 0.12, hipR: -0.2, kneeR: -0.12
+    },
+    kneelingLeaning: {                 // female, kneeling in front of him
+      headTilt: -0.35,
+      shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
+      hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
     }
   };
 
@@ -194,9 +232,29 @@ const LYRICS = [
     return out;
   }
 
+  // Walk cycle following the classic sprite-sheet convention:
+  //   - legs swing with strideAmt, knee lifts on the forward swing
+  //   - arms counter-swing OPPOSITE the same-side leg (left arm forward when right leg forward)
+  //   - arms hang near 0 (straight down) with small amplitude, elbows slightly bent
+  // amount (0-1) scales the whole cycle in/out for a smooth fade-in.
+  function walkCycle(t, speed, strideAmt, kneeAmt, amount){
+    const phase = t * speed;
+    return {
+      hipL:  Math.sin(phase) * strideAmt * amount,
+      hipR:  Math.sin(phase + Math.PI) * strideAmt * amount,
+      kneeL: Math.max(0, Math.sin(phase + Math.PI * 0.5)) * kneeAmt * amount,
+      kneeR: Math.max(0, Math.sin(phase + Math.PI * 1.5)) * kneeAmt * amount,
+      shoulderL: (-Math.sin(phase)) * 0.14 * amount,   // arms hang down, swing opposite same-side leg
+      shoulderR: ( Math.sin(phase)) * 0.14 * amount,
+      elbowL: 0.1 * amount,
+      elbowR: -0.1 * amount
+    };
+  }
+
   /* ---- classic stick-figure renderer (keyframed joint angles, not IK)
          o: { x, y, s, alpha, color, pose, sway }
-         returns the two hand positions in world space (for hand-join checks) ---- */
+         returns hand/head/hip positions in world space (for hand-join checks,
+         and hair/dress/thought-bubble attachments) ---- */
   function drawStickFigure(o){
     const SNow = Math.min(W, H);
     const FH = SNow * .40;                 // overall figure height reference
@@ -246,7 +304,49 @@ const LYRICS = [
     strokeLimb(elbowR[0], elbowR[1], handR[0], handR[1], lw*.7, c, a);
 
     ctx.restore();
-    return { handL: [o.x+handL[0]*(o.s||1), o.y+handL[1]*(o.s||1)], handR: [o.x+handR[0]*(o.s||1), o.y+handR[1]*(o.s||1)] };
+    return {
+      handL: [o.x + handL[0]*(o.s||1), o.y + handL[1]*(o.s||1)],
+      handR: [o.x + handR[0]*(o.s||1), o.y + handR[1]*(o.s||1)],
+      head:  [o.x + headX*(o.s||1), o.y + headY*(o.s||1)],
+      hip:   [o.x, o.y]
+    };
+  }
+
+  /* ---- female variant: same stick framework, then layered hair + dress skirt ----
+       Draws in world space using the returned head/hip positions, so the
+       decoration tracks the figure through any pose or sway. */
+  function drawFemaleStickFigure(o){
+    const result = drawStickFigure(o);
+    const c = o.color, a = o.alpha, s = o.s || 1;
+    const [headX, headY] = result.head;
+    const [hipX, hipY] = result.hip;
+    const headR = Math.min(W,H) * .40 * .07 * s;
+
+    // long hair — a few curved strokes flowing down from the head
+    ctx.strokeStyle = `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+    ctx.lineWidth = headR * .35;
+    ctx.lineCap = 'round';
+    for(let i = -1; i <= 1; i++){
+      ctx.beginPath();
+      ctx.moveTo(headX + i*headR*.5, headY - headR*.3);
+      ctx.quadraticCurveTo(
+        headX + i*headR*1.6, headY + headR*2.2,
+        headX + i*headR*1.1, headY + headR*4.2
+      );
+      ctx.stroke();
+    }
+
+    // dress — a simple triangular skirt outline from waist to ankle-ish width
+    const waistY = hipY - headR*0.4;
+    const hem = headR * 3.2;
+    ctx.beginPath();
+    ctx.moveTo(hipX - headR*0.9, waistY);
+    ctx.lineTo(hipX - hem, waistY + headR*4.5);
+    ctx.moveTo(hipX + headR*0.9, waistY);
+    ctx.lineTo(hipX + hem, waistY + headR*4.5);
+    ctx.stroke();
+
+    return result;
   }
 
   /* ---- small glowing heart shape ---- */
@@ -272,13 +372,21 @@ const LYRICS = [
      user re-syncs):  Scene 2 (Shatter) opens where "It was all heaven…" starts
      (LYRICS[1].t), Scene 3 (Hell) at "Now I'm up in Hell" (LYRICS[2].t).
      local runs 0→1 across a scene; scene 3's local eases in over 3 s, holds. */
-  const s2At  = () => LYRICS[1].t;
-  const s3At  = () => LYRICS[2].t;
+  const s2At = () => LYRICS[1].t;
+  const s3At = () => LYRICS[2].t;
+  const s4At = () => LYRICS[3].t;      // "Gettin' sucked up by a devil ho"
+  const s5At = () => LYRICS[4].t;      // "Takin' these pills on an empty stomach"
+  const s6At = () => LYRICS[5].t;      // "Is like gettin' fucked up with the devil, ho"
+  const s6EndAt = () => LYRICS[6].t;   // next line — scene 6 fades to black by here
   function getScene(t){
-    const s2 = s2At(), s3 = s3At(), span = (s3 - s2) || .001;
-    if(t < s2) return { scene: 1, local: s2 > 0 ? clamp(t / s2, 0, 1) : 0 };
-    if(t < s3) return { scene: 2, local: clamp((t - s2) / span, 0, 1) };
-    return { scene: 3, local: clamp((t - s3) / 3.0, 0, 1) };
+    const s2=s2At(), s3=s3At(), s4=s4At(), s5=s5At(), s6=s6At(), s6e=s6EndAt();
+    if(t < s2) return { scene: 1, local: s2>0 ? clamp(t/s2,0,1) : 0 };
+    if(t < s3) return { scene: 2, local: clamp((t-s2)/((s3-s2)||.001),0,1) };
+    if(t < s4) return { scene: 3, local: clamp((t-s3)/((s4-s3)||.001),0,1) };
+    if(t < s5) return { scene: 4, local: clamp((t-s4)/((s5-s4)||.001),0,1) };
+    if(t < s6) return { scene: 5, local: clamp((t-s5)/((s6-s5)||.001),0,1) };
+    if(t < s6e) return { scene: 6, local: clamp((t-s6)/((s6e-s6)||.001),0,1) };
+    return { scene: 6, local: 1 };   // hold scene 6 (faded to black) until the next segment's script is written
   }
 
   let lastBG = 0;
@@ -288,7 +396,7 @@ const LYRICS = [
     const { scene, local } = getScene(t);
     const SNow = Math.min(W, H);
 
-    // palette mix: warm heaven (1) → drains across the shatter (2) → full hell (3)
+    // palette mix: warm heaven (1) → drains across the shatter (2) → full hell (3+)
     const mp      = scene === 1 ? 0 : scene === 2 ? local : 1;
     const hellAmt = mp;                        // 0→1 warmth→inferno, for embers/sun/smoke
 
@@ -308,7 +416,7 @@ const LYRICS = [
         camX += (Math.random() - .5) * 16 * crack * dpr;
         camY += (Math.random() - .5) * 10 * crack * dpr;
       }
-    } else {                                   // hell: orbit + pull back for the whole verse
+    } else if(scene === 3 || scene === 4){     // hell: orbit + pull back for the whole verse
       const settleIn = clamp((t - s3At()) / 2.0, 0, 1);      // eases focal point in, no snap
       fx = W / 2;
       fy = mix(hy, H * .60, settleIn);                        // was a hard jump to H*.60
@@ -316,6 +424,9 @@ const LYRICS = [
       camX = Math.sin(t * .22) * SNow * .05 * settleIn;       // orbit fades in too, not instant
       camY = Math.cos(t * .16) * SNow * .03 * settleIn;
       rot  = Math.sin(t * .11) * .015 * settleIn;
+    } else {                                   // scenes 5-6: indoor rooms, steady — no orbit
+      fx = hx; fy = hy;
+      s = 1;
     }
 
     ctx.clearRect(0, 0, W, H);
@@ -326,6 +437,10 @@ const LYRICS = [
     ctx.translate(-fx, -fy);
 
     const horizon = H * .68;
+
+    // outdoor landscape (scenes 1-4). Scenes 5-6 are indoor rooms and draw
+    // their own flat wall/floor instead of the hell sky-and-wasteland.
+    if(scene <= 4){
 
     // sky
     const sky = ctx.createLinearGradient(0, 0, 0, horizon);
@@ -350,7 +465,7 @@ const LYRICS = [
     ctx.fillRect(-W, horizon, W * 3, H * 2);
 
     // glowing red fissures — hell only, eased in with the scene
-    if(scene === 3){
+    if(scene === 3 || scene === 4){
       const ca = .25 + .75 * local;
       ctx.lineCap = 'round';
       ctx.globalCompositeOperation = 'lighter';
@@ -413,6 +528,8 @@ const LYRICS = [
       ctx.globalAlpha = 1;
     }
 
+    } // end outdoor landscape
+
     // the two lovers holding hands around the heart (heaven) — and how it breaks
     const fh  = SNow * .32;
     const sep = scene === 2 ? local : 0;        // 0 clasped → 1 the hands have parted
@@ -448,16 +565,152 @@ const LYRICS = [
         }
       }
     }
-    // the protagonist — alone, head bowed, in hell. Alpha and the bowed pose both
-    // ease in on the same pa fade, so he sinks into the slump instead of popping
-    // in already crumpled, and stays almost motionless (slow, heavy sway).
+    // the protagonist — walking alone, head bowed, arms hanging and swinging.
+    // Upper body blends into bowedWalking; legs + arms are driven by walkCycle()
+    // which follows the sprite-sheet convention (arms counter-swing opposite the legs).
     if(scene === 3){
       const pa = clamp((t - s3At()) * 2, 0, 1);
+      const upperPose = lerpPose(POSES.standRelaxed, POSES.bowedWalking, pa);
+      const walk = walkCycle(t, 3.2, 0.38, 0.45, pa);   // stride fades in alongside pa
       drawStickFigure({
-        x: W / 2, y: H * .60, s: .9,
+        x: W / 2,
+        y: H * .60 + Math.sin(t * 6.4) * SNow * 0.004 * pa,   // subtle body bob per step
+        s: .9,
         alpha: .95 * pa, color: pal(1, 'figA'), sway: t * .22,
-        pose: lerpPose(POSES.standRelaxed, POSES.bowedAlone, pa)
+        pose: { ...upperPose, ...walk }   // legs + arms from walkCycle override the static pose
       });
+    }
+
+    if(scene === 4){                 // SCENE 4 — The Throne of Chaos
+      const fa = clamp(local * 2.5, 0, 1);   // figures ease in at scene start
+
+      // throne — simple dark silhouette, center-back of frame
+      const tx = W/2, ty = H*.62;
+      ctx.fillStyle = 'rgba(20,8,10,0.95)';
+      ctx.fillRect(tx - SNow*.09, ty - SNow*.30, SNow*.18, SNow*.30);   // seat back
+      ctx.fillRect(tx - SNow*.13, ty - SNow*.03, SNow*.26, SNow*.06);   // seat base
+      ctx.strokeStyle = 'rgba(255,70,40,0.35)';
+      ctx.lineWidth = 3*dpr;
+      ctx.strokeRect(tx - SNow*.09, ty - SNow*.30, SNow*.18, SNow*.30);
+
+      // shadowy demon silhouettes drifting in the background
+      for(let i = 0; i < 4; i++){
+        const dx = (W * (0.12 + i*0.24)) + Math.sin(t*0.3 + i)*SNow*.02;
+        const dy = H * .70 + Math.cos(t*0.2 + i*2)*SNow*.015;
+        drawStickFigure({
+          x: dx, y: dy, s: 0.55, alpha: 0.28 * fa,
+          color: [30,6,10], sway: t*0.4 + i,
+          pose: lerpPose(POSES.standRelaxed, POSES.bowedAlone, 0.6)
+        });
+      }
+
+      drawStickFigure({
+        x: tx, y: ty - SNow*.05, s: 0.85, alpha: fa,
+        color: pal(1,'figA'), sway: t*.15,
+        pose: POSES.seatedThrone
+      });
+      drawFemaleStickFigure({
+        x: tx - SNow*.05, y: ty + SNow*.10, s: 0.75, alpha: fa,
+        color: pal(1,'figB'), sway: t*.2,
+        pose: POSES.kneelingLeaning
+      });
+    }
+
+    if(scene === 5){                  // SCENE 5 — The Empty Stomach
+      // dim interior — flat wall + floor, no outdoor sky/fissures
+      ctx.fillStyle = 'rgba(18,14,20,1)';
+      ctx.fillRect(-W, -H, W*3, H*3);
+      ctx.fillStyle = 'rgba(10,8,12,1)';
+      ctx.fillRect(-W, H*.72, W*3, H*2);
+
+      // bed edge — simple rectangle silhouette
+      const bx = W*.62, by = H*.68;
+      ctx.fillStyle = 'rgba(35,28,30,1)';
+      ctx.fillRect(bx - SNow*.22, by, SNow*.44, SNow*.06);
+
+      const pa5 = clamp(local * 2, 0, 1);
+      const swallowPhase = clamp((local - .55) / .3, 0, 1);   // swallows in the back half of the scene
+      // hunched seated pose — palm low with pills, rises toward mouth on swallow
+      const pillPose = lerpPose(POSES.standRelaxed, POSES.seatedHunched, 1);
+      pillPose.shoulderR += swallowPhase * 0.7;   // hand rises from lap toward mouth
+      pillPose.elbowR    += swallowPhase * 0.45;
+      const figR = drawStickFigure({
+        x: bx - SNow*.05, y: by, s: 0.85, alpha: pa5,
+        color: pal(1,'figA'), sway: t*.12,
+        pose: pillPose
+      });
+
+      // pills in his raised open palm
+      if(swallowPhase < 1){
+        const [hx, hy] = figR.handR;
+        const pillAlpha = pa5 * (1 - swallowPhase);
+        const colors = [[235,235,245],[110,150,235]];
+        for(let i = 0; i < 4; i++){
+          ctx.fillStyle = `rgba(${colors[i%2][0]},${colors[i%2][1]},${colors[i%2][2]},${pillAlpha})`;
+          ctx.beginPath();
+          ctx.arc(hx + (i-1.5)*6*dpr, hy - 4*dpr, 4*dpr, 0, 6.28);
+          ctx.fill();
+        }
+      }
+
+      // thought bubble with a simple plate icon, fading out as he swallows
+      const bubbleAlpha = pa5 * clamp(1 - local*1.4, 0, 1);
+      if(bubbleAlpha > 0.02){
+        const [headX, headY] = figR.head;
+        const bx2 = headX + SNow*.10, by2 = headY - SNow*.14;
+        ctx.fillStyle = `rgba(255,255,255,${bubbleAlpha*0.9})`;
+        ctx.beginPath(); ctx.ellipse(bx2, by2, SNow*.05, SNow*.035, 0, 0, 6.28); ctx.fill();
+        ctx.strokeStyle = `rgba(40,40,40,${bubbleAlpha})`;
+        ctx.lineWidth = 2*dpr;
+        ctx.beginPath(); ctx.ellipse(bx2, by2, SNow*.024, SNow*.018, 0, 0, 6.28); ctx.stroke(); // plate rim
+      }
+    }
+
+    if(scene === 6){                  // SCENE 6 — The Betrayal
+      // shadowy hallway — darker than Scene 5, slight blue-red tint
+      ctx.fillStyle = 'rgba(10,6,14,1)';
+      ctx.fillRect(-W, -H, W*3, H*3);
+      ctx.fillStyle = 'rgba(6,4,8,1)';
+      ctx.fillRect(-W, H*.72, W*3, H*2);
+
+      const pa6 = clamp(local * 3, 0, 1);
+      drawStickFigure({
+        x: W*.32, y: H*.66, s: 0.9, alpha: pa6,
+        color: pal(1,'figA'), sway: t*.5,           // faster, unsteady sway — blurring vision
+        pose: lerpPose(POSES.standRelaxed, POSES.clutching, clamp(local*1.5,0,1))
+      });
+
+      // background betrayal vignette — small, distant, fading in mid-scene
+      if(local > .25){
+        const bAlpha = clamp((local - .25) / .35, 0, 0.6);
+        const walkX = W*.68 + local * SNow*.12;      // drifting further away as the scene plays
+        drawFemaleStickFigure({
+          x: walkX, y: H*.62, s: 0.45, alpha: bAlpha,
+          color: [50,20,26], sway: t*.6,
+          pose: POSES.standRelaxed
+        });
+        drawStickFigure({
+          x: walkX + SNow*.05, y: H*.62, s: 0.45, alpha: bAlpha,
+          color: [15,15,18], sway: t*.6 + 1,          // pure dark silhouette, unidentified man
+          pose: POSES.standRelaxed
+        });
+      }
+
+      // red glitch lines + fade to black in the last third of the scene
+      if(local > .65){
+        const glitchAlpha = clamp((local - .65) / .35, 0, 1);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for(let i = 0; i < 6; i++){
+          const gy = Math.random() * H;
+          ctx.strokeStyle = `rgba(255,40,40,${0.5 * glitchAlpha * Math.random()})`;
+          ctx.lineWidth = (Math.random()*3 + 1) * dpr;
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy + (Math.random()-.5)*20*dpr); ctx.stroke();
+        }
+        ctx.restore();
+        ctx.fillStyle = `rgba(0,0,0,${glitchAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+      }
     }
 
     // glass shards update + draw
@@ -476,14 +729,36 @@ const LYRICS = [
 
     ctx.restore(); // camera
 
-    // rising embers (hell) / drifting pollen (heaven)
-    for(const e of embers){
+    // rising embers (hell) / drifting pollen (heaven) — outdoor scenes only
+    if(scene <= 4) for(const e of embers){
       e.y -= e.s * (1 + .7 * hellAmt * Math.sin(t * .3 + e.ph));
       if(e.y < 0) e.y = 1;
       e.x += Math.sin(t * .14 + e.ph) * .0002 * (1 + .5 * hellAmt);
       const col = hellAmt > .5 ? [255,120,55] : [255,235,180];
       ctx.fillStyle = rgba(col, .06 + .26 * hellAmt);
       ctx.beginPath(); ctx.arc(e.x * W, e.y * H, e.r * dpr, 0, 6.28); ctx.fill();
+    }
+
+    // falling fire — screen-space, active in the outdoor hell scenes
+    if(scene <= 4 && hellAmt > 0.05){
+      const rainAlpha = clamp((hellAmt - 0.05) / 0.3, 0, 1);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for(const f of fireRain){
+        f.y += f.speed * .012;
+        f.x += f.drift * .003;
+        if(f.y > 1.05){ f.y = -0.05; f.x = Math.random(); }
+        const x1 = f.x * W, y1 = f.y * H;
+        const x2 = x1 + f.drift * 40 * dpr, y2 = y1 - f.len * dpr;
+        const g = ctx.createLinearGradient(x1, y1, x2, y2);
+        g.addColorStop(0, `rgba(255,140,60,${0.55 * rainAlpha})`);
+        g.addColorStop(1, `rgba(255,60,30,0)`);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 2 * dpr;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // the crack of light — a hard vertical tear rips down the frame as it hits
