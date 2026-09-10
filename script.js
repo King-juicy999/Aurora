@@ -166,19 +166,21 @@ const LYRICS = [
 
   /* ---- keyframed joint-angle poses ----
      A pose is { headDroop, shoulderL, elbowL, shoulderR, elbowR, hipL, kneeL, hipR, kneeR }
-     Angles are in radians: 0 = limb straight down for legs, straight out to the
-     side for arms; each segment's angle adds onto its parent's. */
+     Angles are in radians, measured from straight DOWN for every limb (canvas +Y is down):
+     0 = hanging down, +/-pi/2 = horizontal, +/-pi = straight up. Each segment's angle
+     adds onto its parent's. Resting/hanging arms live near 0 (small angle), NEVER near pi —
+     a near-pi shoulder sends the hand above the head. */
   const POSES = {
     standRelaxed: {
       headDroop: 0,
-      shoulderL: 2.6, elbowL: 0.15,   // left arm hanging at side, slight elbow bend
+      shoulderL: -0.55, elbowL: 0.15, // was 2.6/0.15 — near-pi points the arm UP in this rig
       shoulderR: 0.55, elbowR: -0.15, // right arm hanging at side
       hipL: 0.15, kneeL: 0.05,
       hipR: -0.15, kneeR: -0.05
     },
     reachingCenter_left: {            // for the LEFT figure's inner (right) arm, reaching to hold hands
       headDroop: -0.08,
-      shoulderL: 2.6, elbowL: 0.15,
+      shoulderL: -0.55, elbowL: 0.15,     // outer arm hangs at side (was 2.6/0.15 = up)
       shoulderR: 1.6551, elbowR: 0.9195,  // inner arm reaches across to clasp hands at the heart
       hipL: 0.12, kneeL: 0.04,
       hipR: -0.12, kneeR: -0.04
@@ -192,7 +194,7 @@ const LYRICS = [
     },
     bowedAlone: {                     // Hell — head down, arms limp, weight sunk
       headDroop: 0.9,
-      shoulderL: 2.75, elbowL: 0.35,
+      shoulderL: -0.4, elbowL: 0.35,  // was 2.75/0.35 = arm straight up; now hangs limp
       shoulderR: 0.4, elbowR: -0.35,
       hipL: 0.25, kneeL: 0.18,
       hipR: -0.25, kneeR: -0.18
@@ -219,31 +221,36 @@ const LYRICS = [
       shoulderL: 1.35, elbowL: 0.85, shoulderR: 0.65, elbowR: 1.05, // left near face, right clutching gut
       hipL: 0.2, kneeL: 0.12, hipR: -0.2, kneeR: -0.12
     },
-    kneelingLeaning: {                 // female, kneeling in front of him
+    kneelingLeaning: {                 // female, kneeling in front of him — KNOWN BROKEN, flagged not fixed
+      // shoulderL: 2.0 sends the left hand above her own head. A sign flip won't fix it:
+      // this pose needs both hands DOWN on his knees, which requires re-tuning the whole
+      // arm chain against a render. Do not touch until redesign.
       headDroop: -0.35,
       shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
       hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
     },
     onBedTogether_male: {              // Scene 7 — seated/reclined on bed, arm wrapping around her
       headDroop: 0.15,
-      shoulderL: 1.3, elbowL: 0.7,     // crosses his body right, around her back (was 2.3/0.4 = arm up-left)
-      shoulderR: 0.55, elbowR: -1.3,   // wraps her waist
+      shoulderL: -0.55, elbowL: 0.15,  // left arm hangs at his side (was 2.3/0.4 = up)
+      shoulderR: 0.55, elbowR: -1.3,   // right arm wraps her waist
       hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7               // seated/reclined on bed
     },
     onBedTogether_female: {            // Scene 7 — leaning into him on the bed
       headDroop: -0.2,
-      shoulderL: -1.1, elbowL: 0.6, shoulderR: -1.2, elbowR: 0.5,  // both arms reach LEFT, onto him (was positive = away)
+      shoulderL: -1.1, elbowL: 0.6,    // left arm reaches onto him
+      shoulderR: 0.55, elbowR: -0.15,  // right arm hangs at her side (was 2.2/0.4 = up)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     },
     singingLeanIn_male: {              // Scene 8 — medium close-up, relaxed/open expression
       headDroop: -0.05,                 // slight upward, open expression
-      shoulderL: 1.2, elbowL: 0.5,      // crosses around her (was 2.6/0.15 = arm straight up)
+      shoulderL: -0.55, elbowL: 0.15,   // left arm hangs at his side (was 2.6/0.15 = arm straight up)
       shoulderR: 0.55, elbowR: -0.15,   // right arm hangs, relaxed
       hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7
     },
     singingLeanIn_female: {            // Scene 8 — leaning in toward him, head up
       headDroop: -0.15,                 // leaning in toward him, head up/forward
-      shoulderL: -1.0, elbowL: 0.5, shoulderR: -1.1, elbowR: 0.4,  // hands rest on his shoulders (was positive = away)
+      shoulderL: -1.0, elbowL: 0.5,     // left arm reaches onto his shoulder
+      shoulderR: 0.55, elbowR: -0.15,   // right arm hangs at her side (was 2.2/0.3 = up)
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     },
     tightEmbrace_male: {               // Scene 9 — both arms wrapped tight around her
@@ -258,6 +265,25 @@ const LYRICS = [
       hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     }
   };
+
+  /* ---- pose sanity check ----
+     Runs once at load (console only, NOT part of the render loop). Catches the
+     "hand above head" class of bug — a near-pi shoulder angle on a hanging arm.
+     Re-run after any pose edit. Raised arms that are INTENTIONAL (reaching,
+     clutching, wrapping) will warn too — check each warning by eye. */
+  function auditPoses(){
+    const FH = 100, headR=FH*.07, neckLen=FH*.04, torsoLen=FH*.22, upperLen=FH*.16, foreLen=FH*.15;
+    for(const [name, p] of Object.entries(POSES)){
+      const headY = -torsoLen - neckLen - headR + p.headDroop*headR*0.6;
+      const elbowL = [Math.sin(p.shoulderL)*upperLen, -torsoLen + Math.cos(p.shoulderL)*upperLen];
+      const handLy = elbowL[1] + Math.cos(p.shoulderL+p.elbowL)*foreLen;
+      const elbowR = [Math.sin(p.shoulderR)*upperLen, -torsoLen + Math.cos(p.shoulderR)*upperLen];
+      const handRy = elbowR[1] + Math.cos(p.shoulderR+p.elbowR)*foreLen;
+      if(handLy < headY) console.warn(`${name}: LEFT hand above head`);
+      if(handRy < headY) console.warn(`${name}: RIGHT hand above head`);
+    }
+  }
+  auditPoses();
 
   function lerpPose(a, b, m){
     const out = {};
