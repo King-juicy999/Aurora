@@ -224,10 +224,10 @@ const LYRICS = [
       shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
       hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
     },
-    onBedTogether_male: {              // Scene 7 — seated/reclined on bed, arm around her
+    onBedTogether_male: {              // Scene 7 — seated/reclined on bed, arm wrapping around her
       headDroop: 0.15,
-      shoulderL: 2.3, elbowL: 0.4, shoulderR: 1.2, elbowR: 0.5,  // arm around her
-      hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7             // seated/reclined on bed
+      shoulderL: 2.3, elbowL: 0.4, shoulderR: 0.55, elbowR: -1.3,  // upper arm down-right, forearm hooks left across her back
+      hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7               // seated/reclined on bed
     },
     onBedTogether_female: {            // Scene 7 — leaning into him on the bed
       headDroop: -0.2,
@@ -759,6 +759,16 @@ const LYRICS = [
       ctx.fillStyle = 'rgba(14,10,18,1)'; ctx.fillRect(-W,-H,W*3,H*3);
       ctx.fillStyle = 'rgba(8,6,10,1)'; ctx.fillRect(-W,H*.72,W*3,H*2);
 
+      // bed — mattress + headboard, so the figures have somewhere to actually sit
+      const bedX = W*.60, bedY = H*.72;
+      ctx.fillStyle = 'rgba(30,22,26,1)';                       // headboard
+      ctx.fillRect(bedX - SNow*.20, bedY - SNow*.16, SNow*.40, SNow*.10);
+      ctx.fillStyle = 'rgba(45,34,38,1)';                       // mattress
+      ctx.fillRect(bedX - SNow*.22, bedY - SNow*.04, SNow*.44, SNow*.10);
+      ctx.strokeStyle = 'rgba(255,90,70,0.15)';
+      ctx.lineWidth = 1.5*dpr;
+      ctx.strokeRect(bedX - SNow*.22, bedY - SNow*.04, SNow*.44, SNow*.10);
+
       // beat pulse — reuse the song's own BPM constant for the vibration timing
       const beatPhase = (t * (BPM/60)) % 1;
       const kick = Math.pow(1 - beatPhase, 3);            // sharp attack, decay — one pulse per beat
@@ -786,7 +796,7 @@ const LYRICS = [
       }
 
       const pa7 = clamp(local*2, 0, 1);
-      const bx = W*.62, by = H*.66;
+      const bx = bedX, by = bedY - SNow*.02;   // sit right on the mattress top
       drawStickFigure({ x:bx-SNow*.05, y:by, s:0.8, alpha:pa7, color:pal(1,'figA'), sway:t*.3, pose:POSES.onBedTogether_male });
       drawFemaleStickFigure({ x:bx+SNow*.06, y:by, s:0.75, alpha:pa7, color:pal(1,'figB'), sway:t*.3+1, pose:POSES.onBedTogether_female });
 
