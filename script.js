@@ -165,62 +165,62 @@ const LYRICS = [
   }
 
   /* ---- keyframed joint-angle poses ----
-     A pose is { headTilt, shoulderL, elbowL, shoulderR, elbowR, hipL, kneeL, hipR, kneeR }
+     A pose is { headDroop, shoulderL, elbowL, shoulderR, elbowR, hipL, kneeL, hipR, kneeR }
      Angles are in radians: 0 = limb straight down for legs, straight out to the
      side for arms; each segment's angle adds onto its parent's. */
   const POSES = {
     standRelaxed: {
-      headTilt: 0,
+      headDroop: 0,
       shoulderL: 2.6, elbowL: 0.15,   // left arm hanging at side, slight elbow bend
       shoulderR: 0.55, elbowR: -0.15, // right arm hanging at side
       hipL: 0.15, kneeL: 0.05,
       hipR: -0.15, kneeR: -0.05
     },
     reachingCenter_left: {            // for the LEFT figure's inner (right) arm, reaching to hold hands
-      headTilt: -0.08,
+      headDroop: -0.08,
       shoulderL: 2.6, elbowL: 0.15,
       shoulderR: 1.6551, elbowR: 0.9195,  // inner arm reaches across to clasp hands at the heart
       hipL: 0.12, kneeL: 0.04,
       hipR: -0.12, kneeR: -0.04
     },
     reachingCenter_right: {            // mirror, for the RIGHT figure's inner (left) arm
-      headTilt: 0.08,
+      headDroop: 0.08,
       shoulderL: -1.6551, elbowL: -0.9195,  // mirrored reach, hand lands on the same heart point
       shoulderR: 0.55, elbowR: -0.15,
       hipL: 0.12, kneeL: 0.04,
       hipR: -0.12, kneeR: -0.04
     },
     bowedAlone: {                     // Hell — head down, arms limp, weight sunk
-      headTilt: 0.9,
+      headDroop: 0.9,
       shoulderL: 2.75, elbowL: 0.35,
       shoulderR: 0.4, elbowR: -0.35,
       hipL: 0.25, kneeL: 0.18,
       hipR: -0.25, kneeR: -0.18
     },
     bowedWalking: {                    // Hell — head bowed, arms hanging at sides, legs driven by walkCycle
-      headTilt: 0.85,
+      headDroop: 0.85,
       shoulderL: 0.15, elbowL: 0.1,    // left arm hangs down, slight splay
       shoulderR: -0.15, elbowR: -0.1,  // right arm hangs down — arms driven by walkCycle counter-swing
       hipL: 0, kneeL: 0,                // legs overridden every frame by walkCycle()
       hipR: 0, kneeR: 0
     },
     seatedThrone: {                    // male, sitting — arms resting on armrests, not raised
-      headTilt: -0.08,
+      headDroop: -0.08,
       shoulderL: 0.65, elbowL: 0.35, shoulderR: -0.65, elbowR: -0.35,  // arms resting down on armrests
       hipL: 1.5, kneeL: -1.4, hipR: -1.5, kneeR: 1.4   // thighs forward, shins down — seated silhouette
     },
     seatedHunched: {                    // male, hunched on bed edge — elbows on knees, pill palm low
-      headTilt: 0.35,
+      headDroop: 0.35,
       shoulderL: 0.85, elbowL: 0.55, shoulderR: 0.2, elbowR: 0.3,   // right hand low near lap for pills
       hipL: 1.5, kneeL: -1.4, hipR: -1.5, kneeR: 1.4
     },
     clutching: {                        // betrayal — doubled over, left hand to head, right to stomach
-      headTilt: 0.55,
+      headDroop: 0.55,
       shoulderL: 1.35, elbowL: 0.85, shoulderR: 0.65, elbowR: 1.05, // left near face, right clutching gut
       hipL: 0.2, kneeL: 0.12, hipR: -0.2, kneeR: -0.12
     },
     kneelingLeaning: {                 // female, kneeling in front of him
-      headTilt: -0.35,
+      headDroop: -0.35,
       shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
       hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
     }
@@ -265,6 +265,7 @@ const LYRICS = [
     const lw = FH * .022;                  // limb line width
     const c = o.color, a = o.alpha, p = o.pose;
     const sw = o.sway || 0;
+    const facing = o.facing || 0;
 
     ctx.save();
     ctx.translate(o.x, o.y);
@@ -277,8 +278,8 @@ const LYRICS = [
     const neckTop = [shoulderMid[0], shoulderMid[1] - neckLen];
     strokeLimb(shoulderMid[0], shoulderMid[1], neckTop[0], neckTop[1], lw, c, a); // neck
 
-    const headY = neckTop[1] - headR + p.headTilt * headR * 0.6;
-    const headX = neckTop[0] + p.headTilt * headR * 1.2;
+    const headY = neckTop[1] - headR + p.headDroop * headR * 0.6;   // vertical droop only — bowing the head down
+    const headX = neckTop[0] + facing * headR * 0.35;                // horizontal facing offset — independent of droop
     jointDot(headX, headY, headR, c, a); // head circle
 
     // legs
@@ -577,6 +578,7 @@ const LYRICS = [
         y: H * .60 + Math.sin(t * 6.4) * SNow * 0.004 * pa,   // subtle body bob per step
         s: .9,
         alpha: .95 * pa, color: pal(1, 'figA'), sway: t * .22,
+        facing: 1,   // walking right — small forward lean, decoupled from head droop
         pose: { ...upperPose, ...walk }   // legs + arms from walkCycle override the static pose
       });
     }
@@ -677,6 +679,7 @@ const LYRICS = [
       drawStickFigure({
         x: W*.32, y: H*.66, s: 0.9, alpha: pa6,
         color: pal(1,'figA'), sway: t*.5,           // faster, unsteady sway — blurring vision
+        facing: 1,   // walking right
         pose: lerpPose(POSES.standRelaxed, POSES.clutching, clamp(local*1.5,0,1))
       });
 
