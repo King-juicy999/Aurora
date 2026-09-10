@@ -223,6 +223,36 @@ const LYRICS = [
       headDroop: -0.35,
       shoulderL: 2.0, elbowL: 0.6, shoulderR: 1.1, elbowR: 0.6,  // both arms reaching forward, hands on his knees
       hipL: 2.2, kneeL: -2.0, hipR: -2.2, kneeR: 2.0   // legs folded under, kneeling silhouette
+    },
+    onBedTogether_male: {              // Scene 7 — seated/reclined on bed, arm around her
+      headDroop: 0.15,
+      shoulderL: 2.3, elbowL: 0.4, shoulderR: 1.2, elbowR: 0.5,  // arm around her
+      hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7             // seated/reclined on bed
+    },
+    onBedTogether_female: {            // Scene 7 — leaning into him on the bed
+      headDroop: -0.2,
+      shoulderL: 1.1, elbowL: 0.5, shoulderR: 2.2, elbowR: 0.4,
+      hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
+    },
+    singingLeanIn_male: {              // Scene 8 — medium close-up, relaxed/open expression
+      headDroop: -0.05,                 // slight upward, open expression
+      shoulderL: 2.6, elbowL: 0.15, shoulderR: 0.55, elbowR: -0.15,
+      hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7
+    },
+    singingLeanIn_female: {            // Scene 8 — leaning in toward him, head up
+      headDroop: -0.15,                 // leaning in toward him, head up/forward
+      shoulderL: 1.0, elbowL: 0.4, shoulderR: 2.2, elbowR: 0.3,
+      hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
+    },
+    tightEmbrace_male: {               // Scene 9 — both arms wrapped tight around her
+      headDroop: 0.3,
+      shoulderL: 1.1, elbowL: 0.9, shoulderR: 1.9, elbowR: 0.9,  // both arms wrapped around her
+      hipL: 1.3, kneeL: -1.1, hipR: -0.9, kneeR: 0.7
+    },
+    heldClose_female: {                // Scene 9 — resting against his chest
+      headDroop: 0.25,                  // resting against his chest
+      shoulderL: 1.6, elbowL: 0.3, shoulderR: 1.6, elbowR: 0.3,
+      hipL: 1.4, kneeL: -1.2, hipR: -1.0, kneeR: 0.8
     }
   };
 
@@ -378,16 +408,24 @@ const LYRICS = [
   const s4At = () => LYRICS[3].t;      // "Gettin' sucked up by a devil ho"
   const s5At = () => LYRICS[4].t;      // "Takin' these pills on an empty stomach"
   const s6At = () => LYRICS[5].t;      // "Is like gettin' fucked up with the devil, ho"
-  const s6EndAt = () => LYRICS[6].t;   // next line — scene 6 fades to black by here
+  const s6EndAt = () => LYRICS[6].t;   // "Fuck her to my favorite heavy metal, ho" — scene 6 fades to black by here
+  const s7At = () => LYRICS[6].t;      // "Fuck her to my favorite heavy metal, ho"
+  const s8At = () => LYRICS[7].t;      // "We know all the words, so it's special"
+  const s9At = () => LYRICS[8].t;      // "So, so special"
+  const s9EndAt = () => LYRICS[9].t;   // "I loved her and let her go" — next segment starts here
   function getScene(t){
     const s2=s2At(), s3=s3At(), s4=s4At(), s5=s5At(), s6=s6At(), s6e=s6EndAt();
+    const s7=s7At(), s8=s8At(), s9=s9At(), s9e=s9EndAt();
     if(t < s2) return { scene: 1, local: s2>0 ? clamp(t/s2,0,1) : 0 };
     if(t < s3) return { scene: 2, local: clamp((t-s2)/((s3-s2)||.001),0,1) };
     if(t < s4) return { scene: 3, local: clamp((t-s3)/((s4-s3)||.001),0,1) };
     if(t < s5) return { scene: 4, local: clamp((t-s4)/((s5-s4)||.001),0,1) };
     if(t < s6) return { scene: 5, local: clamp((t-s5)/((s6-s5)||.001),0,1) };
     if(t < s6e) return { scene: 6, local: clamp((t-s6)/((s6e-s6)||.001),0,1) };
-    return { scene: 6, local: 1 };   // hold scene 6 (faded to black) until the next segment's script is written
+    if(t < s8) return { scene: 7, local: clamp((t-s7)/((s8-s7)||.001),0,1) };
+    if(t < s9) return { scene: 8, local: clamp((t-s8)/((s9-s8)||.001),0,1) };
+    if(t < s9e) return { scene: 9, local: clamp((t-s9)/((s9e-s9)||.001),0,1) };
+    return { scene: 10, local: 1 };   // placeholder until the next segment's script is written
   }
 
   let lastBG = 0;
@@ -714,6 +752,92 @@ const LYRICS = [
         ctx.fillStyle = `rgba(0,0,0,${glitchAlpha})`;
         ctx.fillRect(0, 0, W, H);
       }
+    }
+
+    if(scene === 7){                  // SCENE 7 — High-Volume Intimacy
+      // dim bedroom, same interior treatment as Scene 5
+      ctx.fillStyle = 'rgba(14,10,18,1)'; ctx.fillRect(-W,-H,W*3,H*3);
+      ctx.fillStyle = 'rgba(8,6,10,1)'; ctx.fillRect(-W,H*.72,W*3,H*2);
+
+      // beat pulse — reuse the song's own BPM constant for the vibration timing
+      const beatPhase = (t * (BPM/60)) % 1;
+      const kick = Math.pow(1 - beatPhase, 3);            // sharp attack, decay — one pulse per beat
+      const shakeAmt = kick * SNow * .006;
+
+      ctx.save();
+      ctx.translate((Math.random()-.5)*shakeAmt, (Math.random()-.5)*shakeAmt);  // frame shake on the beat
+
+      // speaker box, corner of the room
+      const spx = W*.14, spy = H*.60;
+      ctx.fillStyle = 'rgba(15,12,14,1)';
+      ctx.fillRect(spx, spy, SNow*.16, SNow*.24);
+      ctx.strokeStyle = `rgba(255,80,60,${0.3+0.4*kick})`;
+      ctx.lineWidth = 2*dpr;
+      ctx.strokeRect(spx + SNow*.02, spy + SNow*.03*(1-kick*.3), SNow*.12, SNow*.12*(1+kick*.1));
+
+      // soundwave ripples radiating from the speaker
+      for(let i=0;i<3;i++){
+        const rp = ((beatPhase + i*.33) % 1);
+        ctx.strokeStyle = `rgba(255,120,90,${(1-rp)*0.35})`;
+        ctx.lineWidth = 2*dpr;
+        ctx.beginPath();
+        ctx.arc(spx+SNow*.08, spy+SNow*.08, rp*SNow*.35, -0.8, 0.8);
+        ctx.stroke();
+      }
+
+      const pa7 = clamp(local*2, 0, 1);
+      const bx = W*.62, by = H*.66;
+      drawStickFigure({ x:bx-SNow*.05, y:by, s:0.8, alpha:pa7, color:pal(1,'figA'), sway:t*.3, pose:POSES.onBedTogether_male });
+      drawFemaleStickFigure({ x:bx+SNow*.06, y:by, s:0.75, alpha:pa7, color:pal(1,'figB'), sway:t*.3+1, pose:POSES.onBedTogether_female });
+
+      ctx.restore();
+    }
+
+    if(scene === 8){                  // SCENE 8 — Shared Lyrics (The Memory)
+      ctx.fillStyle = 'rgba(14,10,18,1)'; ctx.fillRect(-W,-H,W*3,H*3);
+      ctx.fillStyle = 'rgba(8,6,10,1)'; ctx.fillRect(-W,H*.72,W*3,H*2);
+
+      const pa8 = clamp(local*2, 0, 1);
+      const bx = W*.55, by = H*.62;
+      const figR = drawStickFigure({ x:bx-SNow*.04, y:by, s:1.15, alpha:pa8, color:pal(1,'figA'), sway:t*.25, pose:POSES.singingLeanIn_male });
+      drawFemaleStickFigure({ x:bx+SNow*.09, y:by, s:1.05, alpha:pa8*0.95, color:pal(1,'figB'), sway:t*.25+0.6, pose:POSES.singingLeanIn_female });
+
+      // floating lyric bubbles + notes drifting between them
+      const [hx, hy] = figR.head;
+      for(let i=0;i<5;i++){
+        const fp = ((t*0.6 + i*0.37) % 1);
+        const nx = hx + SNow*.06 + fp*SNow*.05;
+        const ny = hy - SNow*.10 - fp*SNow*.12;
+        ctx.globalCompositeOperation='lighter';
+        ctx.fillStyle = `rgba(255,220,240,${(1-fp)*0.6*pa8})`;
+        ctx.font = `${SNow*.028}px sans-serif`;
+        ctx.fillText(i%2===0 ? '♪' : '♫', nx, ny);
+        ctx.globalCompositeOperation='source-over';
+      }
+    }
+
+    if(scene === 9){                  // SCENE 9 — The Fading Memory
+      const dim = clamp(local*1.5, 0, 1);
+      ctx.fillStyle = `rgba(${10-4*dim},${8-3*dim},${12-5*dim},1)`; ctx.fillRect(-W,-H,W*3,H*3);
+      ctx.fillStyle = 'rgba(5,4,6,1)'; ctx.fillRect(-W,H*.72,W*3,H*2);
+
+      const pa9 = clamp(local*3, 0, 1);
+      const bx = W*.5, by = H*.62;
+      const figR = drawStickFigure({ x:bx, y:by, s:0.95, alpha:pa9, color:pal(1,'figA'), sway:t*.15, pose:POSES.tightEmbrace_male });
+
+      // she slowly turns semi-transparent/shadowy as the line fades
+      const fadeOut = clamp((local-.3)/.6, 0, 1);
+      drawFemaleStickFigure({
+        x:bx+SNow*.02, y:by, s:0.88, alpha:pa9*(1-fadeOut*.75),
+        color: lerpC(pal(1,'figB'), [20,14,22], fadeOut),   // desaturates toward shadow as she fades
+        sway:t*.15+0.8, pose:POSES.heldClose_female
+      });
+
+      // heart flickers like a dying lightbulb over his chest
+      const [hx, hy] = figR.head;
+      const chestX = hx, chestY = hy + SNow*.13;
+      const flicker = (Math.sin(t*9) > 0.3 ? 1 : 0.15) * (0.5 + 0.5*Math.sin(t*1.4));
+      drawHeart(chestX, chestY, SNow*.02, pal(1,'heart'), flicker * pa9 * (1-fadeOut*.4));
     }
 
     // glass shards update + draw
